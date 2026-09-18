@@ -1,0 +1,6 @@
+{
+  "name": "Lusentic Spa & Wellness",
+  "description": "Luxury spa therapies, floating navigation, multi-step booking, client dashboard, cart, and wellness management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

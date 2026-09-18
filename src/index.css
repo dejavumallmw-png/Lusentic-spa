@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --dust-pink-500: #e8b4b8;
+    --dust-pink-600: #d49a9e;
+    --dust-pink-100: #f5dadd;
+    --dark-bg: #1a1418;
+    --footer-bg: #0a0a0a;
+    --white: #ffffff;
+    --light-grey: #f4f4f4;
+    --grey-500: #8a8a8a;
+    
+    --semantic-success: #28a745;
+    --semantic-danger: #dc3545;
+    --semantic-warning: #ffc107;
+    --semantic-info: #17a2b8;
+    --semantic-gold: #ffd700;
+    --social-whatsapp: #25d366;
+
+    /* Theme defaults: Light mode with soft warm luxury spa feel (Nirvana Spa style) */
+    --bg-primary: #fbf9f7;
+    --bg-card: #ffffff;
+    --bg-light: #f5edea;
+    --bg-surface: #ffffff;
+    --border-light: #ece3df;
+    --text-primary: #241a20;
+    --text-muted: #75696e;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    --shadow-hover: 0 16px 50px rgba(232, 180, 184, 0.25);
+  }
+
+  [data-theme="dark"] {
+    --bg-primary: #121212;
+    --bg-card: #1e1e1e;
+    --bg-light: #1a1a1a;
+    --bg-surface: #1e181c;
+    --border-light: #333333;
+    --text-primary: #e8e8e8;
+    --text-muted: #bbbbbb;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    --shadow-hover: 0 16px 50px rgba(232, 180, 184, 0.2);
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+  }
+
+  h1, h2, h3, .font-serif-luxury {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+  }
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-light);
+}
+::-webkit-scrollbar-thumb {
+  background: #d49a9e;
+  border-radius: 9999px;
+}

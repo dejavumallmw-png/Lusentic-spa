@@ -1,13 +1,25 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Therapist } from '../../types';
 import { TeamCard } from '../molecules/TeamCard';
-import { INITIAL_THERAPISTS } from '../../data/initialData';
+import { therapistService } from '../../services/therapistService';
 
 interface TeamSectionProps {
   onBookWithTherapist: (therapist: Therapist) => void;
 }
 
 export const TeamSection: React.FC<TeamSectionProps> = ({ onBookWithTherapist }) => {
+  const [therapists, setTherapists] = useState<Therapist[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      const data = await therapistService.getAll();
+      setTherapists(data);
+    };
+    load();
+    const interval = setInterval(load, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <section id="team" className="py-16 sm:py-24 bg-[var(--bg-light)]/40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -31,8 +43,8 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ onBookWithTherapist })
         </div>
 
         {/* Team Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
-          {INITIAL_THERAPISTS.map((therapist) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
+          {therapists.map((therapist) => (
             <TeamCard
               key={therapist.id}
               therapist={therapist}

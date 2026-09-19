@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './app/providers/ThemeProvider';
 import { AuthProvider, useAuth } from './app/providers/AuthProvider';
 import { CartProvider, useCart } from './app/providers/CartProvider';
@@ -27,12 +27,13 @@ import { BookingModal } from './components/organisms/BookingModal';
 import { SuccessModal } from './components/organisms/SuccessModal';
 import { SearchModal } from './components/organisms/SearchModal';
 import { GiftVoucherModal } from './components/organisms/GiftVoucherModal';
+import { AuthModal } from './components/organisms/AuthModal';
 
 import { Treatment, Therapist, Booking, BookingFormData } from './types';
 import { bookingService } from './services/bookingService';
 
 const MainAppContent: React.FC = () => {
-  const { role } = useAuth();
+  const { role, switchRole } = useAuth();
   const { addItem, openCart } = useCart();
 
   // Primary view state
@@ -42,6 +43,7 @@ const MainAppContent: React.FC = () => {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isVoucherOpen, setIsVoucherOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
 
   // Pre-selected for booking
@@ -50,6 +52,64 @@ const MainAppContent: React.FC = () => {
 
   // Notification toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Listen and sync with URL routes (/admin, /staff, ?admin=true, ?staff=true, #admin, etc.)
+  useEffect(() => {
+    const handleUrlRoute = () => {
+      const path = window.location.pathname.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      const hash = window.location.hash.toLowerCase();
+
+      const isAdmin =
+        path === '/admin' ||
+        path.startsWith('/admin/') ||
+        search.includes('admin=true') ||
+        search.includes('admin') ||
+        hash === '#admin' ||
+        hash === '#/admin';
+
+      const isStaff =
+        path === '/staff' ||
+        path.startsWith('/staff/') ||
+        search.includes('staff=true') ||
+        search.includes('staff') ||
+        hash === '#staff' ||
+        hash === '#/staff';
+
+      if (isAdmin) {
+        switchRole('admin');
+        setActiveView('admin-dashboard');
+      } else if (isStaff) {
+        switchRole('receptionist');
+        setActiveView('admin-dashboard');
+      }
+    };
+
+    handleUrlRoute();
+
+    window.addEventListener('popstate', handleUrlRoute);
+    window.addEventListener('hashchange', handleUrlRoute);
+
+    return () => {
+      window.removeEventListener('popstate', handleUrlRoute);
+      window.removeEventListener('hashchange', handleUrlRoute);
+    };
+  }, [switchRole]);
+
+  const handleBackToHome = () => {
+    setActiveView('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('admin');
+      url.searchParams.delete('staff');
+      let newPath = url.pathname.replace(/\/admin|\/staff/gi, '') || '/';
+      if (!newPath.startsWith('/')) newPath = '/' + newPath;
+      window.history.pushState(null, '', newPath + (url.search ? url.search : ''));
+    } catch {
+      // ignore
+    }
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -98,12 +158,12 @@ const MainAppContent: React.FC = () => {
       {/* Primary Views */}
       {activeView === 'client-dashboard' ? (
         <ClientDashboard
-          onBackToHome={() => setActiveView('home')}
+          onBackToHome={handleBackToHome}
           onBookNewSession={() => handleOpenBooking()}
         />
       ) : activeView === 'admin-dashboard' ? (
         <AdminDashboard
-          onBackToHome={() => setActiveView('home')}
+          onBackToHome={handleBackToHome}
         />
       ) : (
         /* Home View */
@@ -113,6 +173,7 @@ const MainAppContent: React.FC = () => {
             onOpenBooking={() => handleOpenBooking()}
             onOpenSearch={() => setIsSearchOpen(true)}
             onOpenVoucher={() => setIsVoucherOpen(true)}
+            onOpenAuth={() => setIsAuthOpen(true)}
             activeView={activeView}
             setActiveView={(view) => setActiveView(view)}
           />
@@ -173,6 +234,16 @@ const MainAppContent: React.FC = () => {
           <Footer
             onOpenBooking={() => handleOpenBooking()}
             onOpenVoucher={() => setIsVoucherOpen(true)}
+            onOpenAdmin={() => {
+              switchRole('admin');
+              setActiveView('admin-dashboard');
+              try {
+                window.history.pushState(null, '', '?admin=true');
+              } catch {
+                // ignore
+              }
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
 
           {/* Floating Cart Button (PDF spec: bottom-right circular button) */}
@@ -220,7 +291,7 @@ const MainAppContent: React.FC = () => {
       <GiftVoucherModal
         isOpen={isVoucherOpen}
         onClose={() => setIsVoucherOpen(false)}
-        onAddVoucherToCart={(amount, name) => {
+        onAddVoucherToCart={(amount: number, name: string) => {
           addItem({
             id: 9999 + Math.floor(Math.random() * 1000),
             name: `Gift Voucher for ${name}`,
@@ -229,6 +300,19 @@ const MainAppContent: React.FC = () => {
             image: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=400&q=80',
           });
           showToast(`Digital Voucher of R${amount} added to cart`);
+        }}
+      />
+
+      {/* User Login & Role Switching Modal */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onSuccessRole={(userRole) => {
+          if (userRole === 'admin' || userRole === 'receptionist') {
+            setActiveView('admin-dashboard');
+          } else {
+            setActiveView('client-dashboard');
+          }
         }}
       />
 

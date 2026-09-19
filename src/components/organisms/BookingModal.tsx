@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { X, Check, Calendar as CalendarIcon, Clock, User, ArrowRight, ArrowLeft, Sparkles } from 'lucide-react';
-import { Treatment, Therapist, BookingFormData } from '../../types';
-import { INITIAL_TREATMENTS, INITIAL_THERAPISTS } from '../../data/initialData';
+import React, { useState, useEffect } from 'react';
+import { X, Check, Calendar as CalendarIcon, Clock, User, ArrowRight, ArrowLeft, Sparkles, AlertCircle } from 'lucide-react';
+import { Treatment, Therapist, BookingFormData, Booking } from '../../types';
+import { treatmentService } from '../../services/treatmentService';
+import { therapistService } from '../../services/therapistService';
+import { bookingService } from '../../services/bookingService';
 import { Button } from '../atoms/Button';
 import { Input } from '../atoms/Input';
 import { useAuth } from '../../app/providers/AuthProvider';
@@ -23,10 +25,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 }) => {
   const { user } = useAuth();
 
+  const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [therapists, setTherapists] = useState<Therapist[]>([]);
+  const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
+  const [slotErrorMessage, setSlotErrorMessage] = useState<string | null>(null);
+
   const [step, setStep] = useState<number>(1);
-  const [selectedTreatmentId, setSelectedTreatmentId] = useState<number>(
-    preSelectedTreatment?.id || INITIAL_TREATMENTS[0].id
-  );
+  const [selectedTreatmentId, setSelectedTreatmentId] = useState<number>(1);
   
   // Default to tomorrow's date
   const tomorrow = new Date();
@@ -34,19 +39,60 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const defaultDateStr = tomorrow.toISOString().split('T')[0];
 
   const [selectedDate, setSelectedDate] = useState<string>(defaultDateStr);
-  const [selectedTherapistId, setSelectedTherapistId] = useState<number>(
-    preSelectedTherapist?.id || INITIAL_THERAPISTS[0].id
-  );
+  const [selectedTherapistId, setSelectedTherapistId] = useState<number>(1);
   const [selectedTime, setSelectedTime] = useState<string>('14:00');
 
-  const [clientName, setClientName] = useState<string>(
-    user ? `${user.firstName} ${user.lastName}` : 'Amanda Khumalo'
-  );
-  const [clientPhone, setClientPhone] = useState<string>(user?.phone || '+27 82 555 0192');
-  const [clientEmail, setClientEmail] = useState<string>(user?.email || 'amanda.guest@lusenticspa.com');
+  // Client form data imported from user
+  const [clientName, setClientName] = useState<string>('');
+  const [clientPhone, setClientPhone] = useState<string>('');
+  const [clientEmail, setClientEmail] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load dynamic treatments, therapists, bookings and initialize form
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadData = async () => {
+      const [tList, thList, bList] = await Promise.all([
+        treatmentService.getAll(),
+        therapistService.getAll(),
+        bookingService.getBookings(),
+      ]);
+      setTreatments(tList);
+      setTherapists(thList);
+      setExistingBookings(bList);
+
+      if (preSelectedTreatment) {
+        setSelectedTreatmentId(preSelectedTreatment.id);
+      } else if (tList.length > 0) {
+        setSelectedTreatmentId(tList[0].id);
+      }
+
+      if (preSelectedTherapist) {
+        setSelectedTherapistId(preSelectedTherapist.id);
+      } else if (thList.length > 0) {
+        setSelectedTherapistId(thList[0].id);
+      }
+    };
+
+    loadData();
+
+    // Import client name from user's username or full name
+    if (user) {
+      setClientName(user.username || `${user.firstName} ${user.lastName}`);
+      setClientPhone(user.phone || '');
+      setClientEmail(user.email || '');
+    } else {
+      setClientName('Guest');
+      setClientPhone('');
+      setClientEmail('');
+    }
+
+    setSlotErrorMessage(null);
+    setStep(1);
+  }, [isOpen, user, preSelectedTreatment, preSelectedTherapist]);
 
   if (!isOpen) return null;
 
@@ -61,10 +107,35 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     '18:30',
   ];
 
-  const currentTreatment = INITIAL_TREATMENTS.find((t) => t.id === selectedTreatmentId);
-  const currentTherapist = INITIAL_THERAPISTS.find((th) => th.id === selectedTherapistId);
+  const currentTreatment = treatments.find((t) => t.id === selectedTreatmentId) || treatments[0];
+  const currentTherapist = therapists.find((th) => th.id === selectedTherapistId) || therapists[0];
+
+  // Helper to test if a slot is already booked
+  const checkIsSlotBooked = (slot: string) => {
+    return existingBookings.some(
+      (b) =>
+        b.status !== 'cancelled' &&
+        b.date === selectedDate &&
+        Number(b.therapistId) === Number(selectedTherapistId) &&
+        b.time === slot
+    );
+  };
+
+  const handleSlotClick = (slot: string) => {
+    if (checkIsSlotBooked(slot)) {
+      setSlotErrorMessage("Slot booked, please choose the available slots");
+      setTimeout(() => setSlotErrorMessage(null), 4000);
+      return;
+    }
+    setSlotErrorMessage(null);
+    setSelectedTime(slot);
+  };
 
   const handleNext = () => {
+    if (step === 3 && checkIsSlotBooked(selectedTime)) {
+      setSlotErrorMessage("Slot booked, please choose the available slots");
+      return;
+    }
     if (step < 4) setStep(step + 1);
   };
 
@@ -75,6 +146,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName || !clientPhone) return;
+
+    if (checkIsSlotBooked(selectedTime)) {
+      setStep(3);
+      setSlotErrorMessage("Slot booked, please choose the available slots");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -101,7 +178,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         className="fixed inset-0 bg-black/80 backdrop-blur-sm"
       />
 
-      {/* Modal Dialog (PDF Spec: Frame 540 x auto, max 90vh, Background #1e181c, Radius 30px, Padding 40px 35px) */}
+      {/* Modal Dialog */}
       <div className="relative w-full max-w-[560px] max-h-[90vh] bg-[#1e181c] text-white rounded-[30px] border border-white/10 shadow-2xl p-6 sm:p-9 flex flex-col z-10 overflow-hidden">
         
         {/* Header */}
@@ -124,7 +201,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           </button>
         </div>
 
-        {/* 4 Step Indicator Dots (PDF Spec: 40x4px rounded, active: Dust Pink, inactive: rgba(255,255,255,0.2)) */}
+        {/* 4 Step Indicator Dots */}
         <div className="flex items-center gap-2 mb-6">
           {[1, 2, 3, 4].map((s) => (
             <div
@@ -144,11 +221,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-white/70 mb-2">
                 <span>Select a Treatment:</span>
-                <span className="text-[#e8b4b8]">{INITIAL_TREATMENTS.length} Available</span>
+                <span className="text-[#e8b4b8]">{treatments.length} Available</span>
               </div>
 
               <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-                {INITIAL_TREATMENTS.map((treatment) => {
+                {treatments.map((treatment) => {
                   const isSelected = selectedTreatmentId === treatment.id;
                   return (
                     <div
@@ -236,7 +313,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                         key={iso}
                         type="button"
                         onClick={() => setSelectedDate(iso)}
-                        className={`p-3 rounded-xl border text-xs font-medium transition-all ${
+                        className={`p-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
                           isSelected
                             ? 'border-[#e8b4b8] bg-[#e8b4b8]/20 text-[#e8b4b8] font-bold'
                             : 'border-white/10 bg-white/5 hover:border-white/30 text-white/80'
@@ -254,17 +331,28 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           {/* STEP 3: Therapist + Time Slot */}
           {step === 3 && (
             <div className="space-y-4">
+              {/* Slot Clash Warning Banner */}
+              {slotErrorMessage && (
+                <div className="p-3 rounded-xl bg-red-900/60 border border-red-500/50 text-red-200 text-xs flex items-center gap-2.5 animate-in shake duration-200">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                  <span className="font-semibold">{slotErrorMessage}</span>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">
                   Select Therapist
                 </label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {INITIAL_THERAPISTS.map((th) => {
+                <div className="grid grid-cols-2 gap-2.5 max-h-[190px] overflow-y-auto pr-1">
+                  {therapists.map((th) => {
                     const isSelected = selectedTherapistId === th.id;
                     return (
                       <div
                         key={th.id}
-                        onClick={() => setSelectedTherapistId(th.id)}
+                        onClick={() => {
+                          setSelectedTherapistId(th.id);
+                          setSlotErrorMessage(null);
+                        }}
                         className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 ${
                           isSelected
                             ? 'border-[#e8b4b8] bg-[#e8b4b8]/20 shadow-xs'
@@ -274,7 +362,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                         <img
                           src={th.avatar}
                           alt={th.name}
-                          className="w-10 h-10 rounded-full object-cover border border-[#e8b4b8]"
+                          className="w-10 h-10 rounded-full object-cover border border-[#e8b4b8] shrink-0"
                         />
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-white truncate">{th.name}</p>
@@ -287,28 +375,47 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-2">
-                  Select Available Time Slot
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-white/70">
+                    Select Available Time Slot
+                  </label>
+                  <span className="text-[11px] text-white/50">
+                    {selectedDate}
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-4 gap-2">
                   {timeSlots.map((slot) => {
-                    const isSelected = selectedTime === slot;
+                    const isBooked = checkIsSlotBooked(slot);
+                    const isSelected = selectedTime === slot && !isBooked;
+
                     return (
                       <button
                         key={slot}
                         type="button"
-                        onClick={() => setSelectedTime(slot)}
-                        className={`py-2 px-1 rounded-xl text-xs font-medium transition-all text-center ${
-                          isSelected
+                        onClick={() => handleSlotClick(slot)}
+                        className={`py-2 px-1 rounded-xl text-xs font-medium transition-all text-center relative cursor-pointer ${
+                          isBooked
+                            ? 'opacity-35 line-through bg-white/5 border border-dashed border-red-500/40 text-red-300 hover:opacity-60 cursor-not-allowed'
+                            : isSelected
                             ? 'bg-[#e8b4b8] text-[#1a1418] font-bold shadow-md'
                             : 'bg-white/5 border border-white/10 hover:border-[#e8b4b8] text-white/80'
                         }`}
+                        title={isBooked ? 'Slot already booked with this therapist' : `Select ${slot}`}
                       >
                         {slot}
+                        {isBooked && (
+                          <span className="block text-[8px] no-underline font-normal text-red-400 leading-none mt-0.5">
+                            Booked
+                          </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
+                <p className="text-[11px] text-white/50 mt-2 italic">
+                  * Faded crossed-out slots are already reserved for this therapist on {selectedDate}.
+                </p>
               </div>
             </div>
           )}
@@ -335,20 +442,23 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 </div>
               </div>
 
-              <Input
-                label="Full Name *"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="e.g. Amanda Khumalo"
-                required
-                className="bg-white/10 border-white/20 text-white placeholder-white/40"
-              />
+              <div className="space-y-1">
+                <Input
+                  label="Client Name (Imported from account) *"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="e.g. Amanda Khumalo"
+                  required
+                  className="bg-white/10 border-white/20 text-white placeholder-white/40"
+                />
+                <p className="text-[10px] text-white/50">Auto-filled from your logged in profile</p>
+              </div>
 
               <Input
                 label="Contact Phone / WhatsApp *"
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
-                placeholder="+27 82 000 0000"
+                placeholder="e.g. +27 82 555 0192"
                 required
                 className="bg-white/10 border-white/20 text-white placeholder-white/40"
               />
@@ -358,68 +468,67 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 type="email"
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
-                placeholder="your.email@example.com"
+                placeholder="e.g. amanda.guest@lusenticspa.com"
                 className="bg-white/10 border-white/20 text-white placeholder-white/40"
               />
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-1">
-                  Special Notes or Health Concerns
+                <label className="block text-xs font-semibold uppercase tracking-wider text-white/70 mb-1.5">
+                  Special Health / Pressure Preferences
                 </label>
                 <textarea
-                  rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Any tension areas, pressure preferences, allergies, or injuries..."
-                  className="w-full p-3 rounded-2xl bg-white/10 border border-white/20 text-white text-xs placeholder-white/40 focus:outline-none focus:border-[#e8b4b8] resize-none"
+                  placeholder="Any focus areas, allergies, injuries, or essential oil preferences..."
+                  rows={2}
+                  className="w-full p-3 rounded-[16px] bg-white/10 border border-white/20 text-white text-xs placeholder-white/40 focus:outline-none focus:border-[#e8b4b8]"
                 />
               </div>
+
+              <Button
+                variant="primary"
+                size="md"
+                type="submit"
+                fullWidth
+                disabled={isSubmitting}
+                className="font-bold text-xs sm:text-sm mt-2 shadow-lg"
+              >
+                {isSubmitting ? 'Confirming Appointment...' : 'Complete Reservation'}
+              </Button>
             </form>
           )}
 
         </div>
 
-        {/* Modal Footer Controls */}
-        <div className="pt-4 mt-4 border-t border-white/10 flex items-center justify-between gap-3">
-          {step > 1 ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBack}
-              icon={<ArrowLeft className="w-3.5 h-3.5" />}
-              className="border-white/20 text-white hover:bg-white/10"
-            >
-              Back
-            </Button>
-          ) : (
-            <div />
-          )}
+        {/* Footer Navigation Buttons for Steps 1-3 */}
+        {step < 4 && (
+          <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-3 mt-3">
+            {step > 1 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBack}
+                icon={<ArrowLeft className="w-4 h-4" />}
+                className="border-white/20 text-white hover:bg-white/10 text-xs"
+              >
+                Back
+              </Button>
+            ) : (
+              <div />
+            )}
 
-          {step < 4 ? (
             <Button
               variant="primary"
-              size="md"
+              size="sm"
               onClick={handleNext}
               icon={<ArrowRight className="w-4 h-4" />}
               iconPosition="right"
-              className="text-xs sm:text-sm font-bold ml-auto"
+              className="text-xs font-bold"
             >
-              Continue to Step {step + 1}
+              Continue ({step}/4)
             </Button>
-          ) : (
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleSubmit}
-              disabled={isSubmitting || !clientName || !clientPhone}
-              icon={<Check className="w-4 h-4" />}
-              iconPosition="right"
-              className="text-xs sm:text-sm font-bold ml-auto"
-            >
-              {isSubmitting ? 'Confirming...' : 'Confirm Appointment'}
-            </Button>
-          )}
-        </div>
+          </div>
+        )}
 
       </div>
     </div>

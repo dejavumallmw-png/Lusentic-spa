@@ -85,8 +85,8 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-[var(--text-primary)]">Luxury &amp; Comfort</h4>
-                    <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                    <h4 className="text-sm font-bold text-stone-900 dark:text-white">Luxury &amp; Comfort</h4>
+                    <p className="text-xs text-stone-600 dark:text-stone-300 font-medium leading-relaxed">
                       Experience 5-star comfort, heated organic treatment tables, and soundproof private suites.
                     </p>
                   </div>
@@ -97,8 +97,8 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
                     <HeartHandshake className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-[var(--text-primary)]">Personalized Care</h4>
-                    <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                    <h4 className="text-sm font-bold text-stone-900 dark:text-white">Personalized Care</h4>
+                    <p className="text-xs text-stone-600 dark:text-stone-300 font-medium leading-relaxed">
                       Every pressure, essential oil blend, and temperature is adjusted specifically for you.
                     </p>
                   </div>
@@ -109,8 +109,8 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
                     <ShieldCheck className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-[var(--text-primary)]">Certified Natural</h4>
-                    <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                    <h4 className="text-sm font-bold text-stone-900 dark:text-white">Certified Natural</h4>
+                    <p className="text-xs text-stone-600 dark:text-stone-300 font-medium leading-relaxed">
                       Cruelty-free, vegan organic formulas free of artificial preservatives, parabens, and perfumes.
                     </p>
                   </div>
@@ -118,17 +118,17 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
               </div>
             </div>
 
-            <div className="pt-6 border-t border-[var(--border-light)] mt-6 flex items-center justify-between text-xs text-[var(--text-muted)]">
+            <div className="pt-6 border-t border-[var(--border-light)] mt-6 flex items-center justify-between text-xs text-stone-600 dark:text-stone-300 font-medium">
               <span>Open 7 Days a Week</span>
               <span className="font-semibold text-[#28a745]">● Now Accepting Bookings</span>
             </div>
           </div>
 
           {/* Right Block: Featured Guest Review Card (Photo 2) */}
-          <div className="lg:col-span-3 rounded-[28px] bg-[#fbf5f6] dark:bg-[#241a20] p-7 sm:p-8 border border-[#e8b4b8]/40 shadow-[var(--shadow)] flex flex-col justify-between">
+          <div className="lg:col-span-3 rounded-[28px] bg-white dark:bg-[#241a20] p-7 sm:p-8 border-2 border-[#e8b4b8] shadow-lg flex flex-col justify-between">
             <div>
               <span className="text-4xl text-[#d49a9e] font-serif leading-none block mb-2">“</span>
-              <p className="text-sm text-[var(--text-primary)] font-medium italic leading-relaxed mb-6">
+              <p className="text-sm sm:text-base text-stone-900 dark:text-stone-100 font-medium italic leading-relaxed mb-6">
                 The best spa experience I've ever had. The therapists are remarkably intuitive, the ambience is peaceful, and I left feeling completely recharged.
               </p>
             </div>
@@ -147,8 +147,8 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
                   className="w-11 h-11 rounded-full object-cover border-2 border-[#e8b4b8]"
                 />
                 <div>
-                  <h5 className="text-sm font-bold text-[var(--text-primary)]">Priya S.</h5>
-                  <p className="text-xs text-[var(--text-muted)]">Verified Regular Guest</p>
+                  <h5 className="text-sm font-bold text-stone-900 dark:text-white">Priya S.</h5>
+                  <p className="text-xs text-stone-600 dark:text-stone-300 font-medium">Verified Regular Guest</p>
                 </div>
               </div>
             </div>

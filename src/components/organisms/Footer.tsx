@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   MapPin,
@@ -7,17 +7,23 @@ import {
   Send,
   CheckCircle2,
   Instagram,
-  MessageSquare
+  Facebook,
+  MessageSquare,
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
 import { Button } from '../atoms/Button';
+import { settingsService } from '../../services/settingsService';
 
 interface FooterProps {
   onOpenBooking: () => void;
   onOpenVoucher: () => void;
+  onOpenAdmin?: () => void;
   onSelectCategory?: (category: string) => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) => {
+export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher, onOpenAdmin }) => {
+  const [settings, setSettings] = useState(settingsService.getSettings());
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterSuccess, setNewsletterSuccess] = useState(false);
 
@@ -25,6 +31,13 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) 
   const [contactEmail, setContactEmail] = useState('');
   const [contactMsg, setContactMsg] = useState('');
   const [contactSuccess, setContactSuccess] = useState(false);
+
+  useEffect(() => {
+    const unsub = settingsService.subscribe((updated) => {
+      setSettings(updated);
+    });
+    return () => unsub();
+  }, []);
 
   const handleNewsletter = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +61,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) 
     <footer id="contact" className="bg-[#1a1418] text-white pt-14 pb-8 border-t border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Newsletter Subscription Strip (Photo 2 "STAY UPDATED") */}
+        {/* Newsletter Subscription Strip */}
         <div className="pb-12 border-b border-white/10 mb-12 flex flex-col lg:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4 text-center lg:text-left">
             <div className="w-12 h-12 rounded-full bg-[#e8b4b8]/20 flex items-center justify-center text-[#e8b4b8] shrink-0">
@@ -79,18 +92,27 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) 
           </form>
         </div>
 
-        {/* 4 Columns (Part 3.3, page 18-19 of PDF spec & Photo 2 style) */}
+        {/* 4 Columns */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10 pb-12 border-b border-white/10">
           
-          {/* Column 1: Brand & Contact Info (PDF: H4 "Lusentic Spa" with Spa in Dust Pink) */}
+          {/* Column 1: Brand & Contact Info (Dynamically updated from Admin Settings) */}
           <div className="lg:col-span-4 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#d49a9e] to-[#e8b4b8] flex items-center justify-center text-[#1a1418]">
-                  <Sparkles className="w-4 h-4 text-white" />
-                </div>
+                {settings.logoUrl ? (
+                  <img
+                    src={settings.logoUrl}
+                    alt="Lusentic Spa Logo"
+                    className="w-10 h-10 rounded-full object-cover border border-[#e8b4b8]"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#d49a9e] to-[#e8b4b8] flex items-center justify-center text-[#1a1418]">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                )}
                 <h4 className="text-2xl font-bold tracking-tight text-white">
-                  Lusentic <span className="font-light text-[#e8b4b8] font-serif-luxury italic">Spa</span>
+                  {settings.brandName || settings.businessName || 'Lusentic'}{' '}
+                  <span className="font-light text-[#e8b4b8] font-serif-luxury italic">{settings.brandSuffix || 'Spa'}</span>
                 </h4>
               </div>
 
@@ -101,23 +123,27 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) 
               <div className="space-y-3 text-xs text-white/80">
                 <div className="flex items-start gap-3">
                   <MapPin className="w-4 h-4 text-[#e8b4b8] shrink-0 mt-0.5" />
-                  <span>128 Rosebank Boulevard, Sanctuary Quarter, Johannesburg, 2196</span>
+                  <span>{settings.address}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone className="w-4 h-4 text-[#e8b4b8] shrink-0" />
-                  <span>+27 (0) 11 888 9000 / +27 82 555 0192</span>
+                  <span>{settings.phone}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Mail className="w-4 h-4 text-[#e8b4b8] shrink-0" />
-                  <span>concierge@lusenticspa.com</span>
+                  <span>{settings.email}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Clock className="w-4 h-4 text-[#e8b4b8] shrink-0" />
+                  <span>{settings.operatingHours}</span>
                 </div>
               </div>
             </div>
 
-            {/* Social Icons (row, gap 14, hover lift -3px) */}
+            {/* Social Icons */}
             <div className="flex items-center gap-3.5 mt-6">
               <a
-                href="https://wa.me/27825550192"
+                href={settings.socials?.whatsapp || 'https://wa.me/27825550192'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#25D366] text-white flex items-center justify-center transition-all hover:-translate-y-1 shadow-sm"
@@ -126,7 +152,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) 
                 <MessageSquare className="w-4 h-4" />
               </a>
               <a
-                href="https://instagram.com"
+                href={settings.socials?.instagram || 'https://instagram.com'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#E1306C] text-white flex items-center justify-center transition-all hover:-translate-y-1 shadow-sm"
@@ -135,7 +161,16 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) 
                 <Instagram className="w-4 h-4" />
               </a>
               <a
-                href="mailto:concierge@lusenticspa.com"
+                href={settings.socials?.facebook || 'https://facebook.com'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#1877F2] text-white flex items-center justify-center transition-all hover:-translate-y-1 shadow-sm"
+                title="Facebook"
+              >
+                <Facebook className="w-4 h-4" />
+              </a>
+              <a
+                href={`mailto:${settings.email}`}
                 className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#e8b4b8] hover:text-[#1a1418] text-white flex items-center justify-center transition-all hover:-translate-y-1 shadow-sm"
                 title="Email Concierge"
               >
@@ -208,7 +243,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) 
             </ul>
           </div>
 
-          {/* Column 4: Contact / Inquiry Form (PDF spec: Column 3 - Form with Name, Email, Message, Send button) */}
+          {/* Column 4: Contact / Inquiry Form */}
           <div className="lg:col-span-4">
             <h4 className="text-sm font-bold uppercase tracking-wider text-white mb-4">
               Send an Inquiry
@@ -259,11 +294,21 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) 
 
         {/* Footer Bottom Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-white/50">
-          <p>© 2026 Lusentic Spa &amp; Wellness. All Rights Reserved.</p>
-          <div className="flex items-center gap-6">
+          <p>© 2026 {settings.businessName || 'Lusentic Spa & Wellness'}. All Rights Reserved.</p>
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
             <span className="hover:text-white cursor-pointer">Privacy Policy</span>
             <span className="hover:text-white cursor-pointer">Terms &amp; Etiquette</span>
             <span className="hover:text-white cursor-pointer">Cancellation Policy</span>
+            {onOpenAdmin && (
+              <button
+                onClick={onOpenAdmin}
+                className="hover:text-[#e8b4b8] text-white/70 flex items-center gap-1.5 cursor-pointer font-medium transition-colors"
+                title="Open Super Admin Panel"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-[#e8b4b8]" />
+                <span>Admin Sanctuary Portal</span>
+              </button>
+            )}
           </div>
         </div>
 

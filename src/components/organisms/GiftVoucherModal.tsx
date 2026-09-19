@@ -1,65 +1,90 @@
-import React, { useState } from 'react';
-import { X, Gift, Sparkles, Check, Copy } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Gift, Sparkles, MessageCircle, Phone, Heart } from 'lucide-react';
+import { Treatment } from '../../types';
+import { treatmentService } from '../../services/treatmentService';
+import { settingsService } from '../../services/settingsService';
 import { Button } from '../atoms/Button';
 import { Input } from '../atoms/Input';
+import { useAuth } from '../../app/providers/AuthProvider';
 
 interface GiftVoucherModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddVoucherToCart?: (amount: number, recipientName: string) => void;
+  onAddVoucherToCart?: (amount: number, name: string) => void;
 }
 
 export const GiftVoucherModal: React.FC<GiftVoucherModalProps> = ({
   isOpen,
   onClose,
-  onAddVoucherToCart,
 }) => {
-  const [amount, setAmount] = useState<number>(1000);
-  const [customAmount, setCustomAmount] = useState<string>('');
+  const { user } = useAuth();
+  const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [businessPhone, setBusinessPhone] = useState<string>('27825550192');
+
+  const [selectedTreatment, setSelectedTreatment] = useState<string>('Swedish Full Body Massage (60 min)');
+  const [treatmentPrice, setTreatmentPrice] = useState<number>(650);
+  const [gifterName, setGifterName] = useState<string>('');
   const [recipientName, setRecipientName] = useState<string>('');
-  const [recipientEmail, setRecipientEmail] = useState<string>('');
-  const [senderName, setSenderName] = useState<string>('');
-  const [message, setMessage] = useState<string>('Wishing you restorative peace, self-care, and pure relaxation.');
-  const [purchased, setPurchased] = useState<boolean>(false);
-  const [voucherCode, setVoucherCode] = useState<string>('');
-  const [copied, setCopied] = useState<boolean>(false);
+  const [specialMessage, setSpecialMessage] = useState<string>(
+    'Wishing you moments of pure tranquility, restorative peace, and wellness.'
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const load = async () => {
+      const [tList, settings] = await Promise.all([
+        treatmentService.getAll(),
+        settingsService.getSettings(),
+      ]);
+      setTreatments(tList);
+      if (tList.length > 0) {
+        setSelectedTreatment(tList[0].name);
+        setTreatmentPrice(tList[0].price);
+      }
+      if (settings?.phone) {
+        // clean phone digits for WhatsApp
+        const digits = settings.phone.replace(/[^0-9]/g, '');
+        if (digits) setBusinessPhone(digits);
+      }
+    };
+    load();
+
+    if (user) {
+      setGifterName(user.username || `${user.firstName} ${user.lastName}`);
+    } else {
+      setGifterName('');
+    }
+  }, [isOpen, user]);
 
   if (!isOpen) return null;
 
-  const presetAmounts = [500, 850, 1000, 1500, 2500];
-
-  const handleSelectPreset = (val: number) => {
-    setAmount(val);
-    setCustomAmount('');
+  const handleTreatmentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setSelectedTreatment(val);
+    const found = treatments.find((t) => t.name === val);
+    if (found) setTreatmentPrice(found.price);
   };
 
-  const handleCustomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCustomAmount(e.target.value);
-    const num = parseInt(e.target.value, 10);
-    if (!isNaN(num) && num > 0) {
-      setAmount(num);
-    }
-  };
-
-  const handleGenerate = (e: React.FormEvent) => {
+  const handleWhatsAppInquiry = (e: React.FormEvent) => {
     e.preventDefault();
-    const code = `LUS-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    setVoucherCode(code);
-    setPurchased(true);
+    const textMsg = `Hello Lusentic Spa Sanctuary,
 
-    if (onAddVoucherToCart) {
-      onAddVoucherToCart(amount, recipientName || 'Valued Guest');
-    }
-  };
+I would like to inquire about purchasing a Gift Voucher:
+• Therapy / Treatment: ${selectedTreatment} (R${treatmentPrice})
+• Gifter (My Name): ${gifterName || 'A Valued Guest'}
+• Recipient: ${recipientName || 'Special Someone'}
+• Special Message: "${specialMessage}"
 
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(voucherCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+Please guide me through the payment and voucher delivery process. Thank you!`;
+
+    const encoded = encodeURIComponent(textMsg);
+    const waUrl = `https://wa.me/${businessPhone}?text=${encoded}`;
+    window.open(waUrl, '_blank');
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div
         onClick={onClose}
@@ -67,7 +92,7 @@ export const GiftVoucherModal: React.FC<GiftVoucherModalProps> = ({
       />
 
       {/* Modal Dialog */}
-      <div className="relative w-full max-w-xl bg-[var(--bg-card)] text-[var(--text-primary)] rounded-[32px] border border-[var(--border-light)] shadow-2xl p-6 sm:p-9 z-10 overflow-hidden max-h-[92vh] flex flex-col">
+      <div className="relative w-full max-w-xl bg-white dark:bg-[#1e181c] text-gray-900 dark:text-white rounded-[32px] border border-[#e5d5d8] dark:border-white/10 shadow-2xl p-6 sm:p-8 z-10 overflow-hidden max-h-[92vh] flex flex-col">
         
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
@@ -76,173 +101,147 @@ export const GiftVoucherModal: React.FC<GiftVoucherModalProps> = ({
               <Gift className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-serif-luxury text-2xl sm:text-3xl font-semibold leading-tight">
-                Digital <span className="italic text-[#d49a9e]">Gift Voucher</span>
+              <h2 className="font-serif-luxury text-2xl sm:text-3xl font-semibold leading-tight text-gray-900 dark:text-white">
+                Gift a <span className="italic text-[#b57377] dark:text-[#e8b4b8]">Voucher</span>
               </h2>
-              <p className="text-xs text-[var(--text-muted)]">
-                Gift someone an exquisite day of peace and pampering
+              <p className="text-xs text-gray-500 dark:text-white/60">
+                Inquire and order a personalized luxury spa gift voucher directly on WhatsApp
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+            className="w-9 h-9 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-gray-500 dark:text-white/70 hover:text-gray-900 dark:hover:text-white cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-1 space-y-5">
+        <div className="flex-1 overflow-y-auto pr-1 space-y-4">
           {/* Interactive Luxury Voucher Card Preview */}
-          <div className="relative rounded-[24px] p-6 bg-gradient-to-tr from-[#1a1418] via-[#2d2228] to-[#120e10] text-white shadow-xl border border-[#FFD700]/40 overflow-hidden">
+          <div className="relative rounded-[24px] p-5 sm:p-6 bg-gradient-to-tr from-[#1a1418] via-[#2d2228] to-[#120e10] text-white shadow-xl border border-[#FFD700]/40 overflow-hidden">
             <div className="absolute top-0 right-0 w-36 h-36 bg-[#FFD700]/15 rounded-full blur-2xl pointer-events-none" />
             
-            <div className="flex items-start justify-between mb-6">
+            <div className="flex items-start justify-between mb-4">
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-widest text-[#FFD700]">
-                  Sanctuary Certificate
+                  Sanctuary Gift Certificate
                 </span>
-                <h3 className="font-serif-luxury text-xl font-bold tracking-wide">
+                <h3 className="font-serif-luxury text-lg sm:text-xl font-bold tracking-wide">
                   Lusentic Spa &amp; Wellness
                 </h3>
               </div>
-              <Sparkles className="w-6 h-6 text-[#FFD700]" />
+              <Sparkles className="w-5 h-5 text-[#FFD700]" />
             </div>
 
-            <div className="mb-4">
-              <span className="text-[11px] text-white/60">Voucher Value</span>
-              <div className="text-3xl sm:text-4xl font-bold font-serif-luxury text-[#e8b4b8]">
-                R{amount.toLocaleString()}
+            <div className="mb-4 bg-white/5 p-3 rounded-xl border border-white/10">
+              <span className="text-[10px] text-white/60 uppercase tracking-wider font-semibold">Chosen Experience:</span>
+              <div className="text-base sm:text-lg font-bold text-[#e8b4b8] truncate">
+                {selectedTreatment}
+              </div>
+              <div className="text-sm font-bold text-[#FFD700] mt-0.5">
+                Approx. R{treatmentPrice.toLocaleString()}
               </div>
             </div>
 
-            <div className="pt-3 border-t border-white/15 flex items-center justify-between text-xs text-white/80">
+            <div className="pt-2 border-t border-white/15 flex items-center justify-between text-xs text-white/80">
               <div>
-                <p className="text-[10px] text-white/50">For:</p>
+                <p className="text-[10px] text-white/50">For (Recipient):</p>
                 <p className="font-semibold text-white truncate max-w-[150px]">
                   {recipientName || 'Special Someone'}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] text-white/50">From:</p>
+                <p className="text-[10px] text-white/50">From (Gifter):</p>
                 <p className="font-semibold text-white truncate max-w-[150px]">
-                  {senderName || 'You'}
+                  {gifterName || 'You'}
                 </p>
               </div>
             </div>
 
-            {voucherCode && (
-              <div className="mt-3 p-2 rounded-xl bg-white/10 border border-[#FFD700]/50 flex items-center justify-between text-xs font-mono">
-                <span className="text-[#FFD700] tracking-widest">{voucherCode}</span>
-                <button
-                  onClick={handleCopyCode}
-                  className="text-[11px] text-white/80 hover:text-white flex items-center gap-1 cursor-pointer"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Copied' : 'Copy'}</span>
-                </button>
+            {specialMessage && (
+              <div className="mt-3 pt-2 border-t border-white/10 text-[11px] italic text-white/70">
+                "{specialMessage}"
               </div>
             )}
           </div>
 
-          {purchased ? (
-            <div className="p-4 rounded-2xl bg-green-500/10 border border-green-500/30 text-center space-y-2">
-              <p className="text-sm font-bold text-green-600 dark:text-green-400 flex items-center justify-center gap-1.5">
-                <Check className="w-4 h-4" /> Digital Voucher Created!
-              </p>
-              <p className="text-xs text-[var(--text-muted)]">
-                The voucher code <span className="font-mono font-bold text-[var(--text-primary)]">{voucherCode}</span> is active and redeemable online or at spa reception.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPurchased(false)}
-                className="mt-2 text-xs"
+          <form onSubmit={handleWhatsAppInquiry} className="space-y-3.5">
+            {/* Treatment Selector */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-white/70 mb-1.5">
+                What Treatment Would You Like to Gift? *
+              </label>
+              <select
+                value={selectedTreatment}
+                onChange={handleTreatmentChange}
+                required
+                className="w-full h-11 px-3.5 rounded-xl border border-gray-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8]"
               >
-                Create Another Voucher
-              </Button>
+                {treatments.map((t) => (
+                  <option key={t.id} value={t.name} className="bg-white dark:bg-[#1a1418] text-gray-900 dark:text-white">
+                    {t.name} (R{t.price} • {t.duration} min)
+                  </option>
+                ))}
+                <option value="Custom Sanctuary Pamper Package" className="bg-white dark:bg-[#1a1418] text-gray-900 dark:text-white">
+                  Custom Sanctuary Pamper Package (Value of your choice)
+                </option>
+              </select>
             </div>
-          ) : (
-            <form onSubmit={handleGenerate} className="space-y-4">
-              {/* Select Preset Amount */}
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">
-                  Select Amount (R)
-                </label>
-                <div className="grid grid-cols-5 gap-2 mb-2">
-                  {presetAmounts.map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => handleSelectPreset(p)}
-                      className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        amount === p && !customAmount
-                          ? 'bg-[#e8b4b8] text-[#1a1418] shadow-sm'
-                          : 'bg-black/5 dark:bg-white/5 hover:bg-black/10'
-                      }`}
-                    >
-                      R{p}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="number"
-                  placeholder="Or enter custom amount in R..."
-                  value={customAmount}
-                  onChange={handleCustomChange}
-                  className="w-full h-10 px-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs"
-                />
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  label="Recipient Name"
-                  placeholder="Recipient's Name"
-                  value={recipientName}
-                  onChange={(e) => setRecipientName(e.target.value)}
-                  required
-                />
-                <Input
-                  label="Recipient Email"
-                  type="email"
-                  placeholder="recipient@example.com"
-                  value={recipientEmail}
-                  onChange={(e) => setRecipientEmail(e.target.value)}
-                />
-              </div>
-
+            {/* Gifter Name and Recipient Name */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input
-                label="Sender Name (From)"
-                placeholder="Your Name"
-                value={senderName}
-                onChange={(e) => setSenderName(e.target.value)}
+                label="Your Name (Gifter) *"
+                placeholder="e.g. Lerato Ndlovu"
+                value={gifterName}
+                onChange={(e) => setGifterName(e.target.value)}
+                required
+                className="bg-stone-50 dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white placeholder-gray-400"
               />
+              <Input
+                label="Recipient's Name *"
+                placeholder="e.g. Thabo Molefe"
+                value={recipientName}
+                onChange={(e) => setRecipientName(e.target.value)}
+                required
+                className="bg-stone-50 dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white placeholder-gray-400"
+              />
+            </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1">
-                  Personal Gift Message
-                </label>
-                <textarea
-                  rows={2}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-[var(--border-light)] bg-transparent text-xs focus:outline-none focus:border-[#e8b4b8] resize-none"
-                />
-              </div>
+            {/* Special Message */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-white/70 mb-1">
+                Special Message for the Recipient
+              </label>
+              <textarea
+                rows={2}
+                value={specialMessage}
+                onChange={(e) => setSpecialMessage(e.target.value)}
+                placeholder="Write a sweet birthday, anniversary, or self-care note..."
+                className="w-full p-3 rounded-xl border border-gray-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8] resize-none placeholder-gray-400"
+              />
+            </div>
 
+            {/* WhatsApp Inquiry Button */}
+            <div className="pt-2">
               <Button
-                variant="gold"
+                variant="whatsapp"
                 size="md"
                 type="submit"
                 fullWidth
-                icon={<Gift className="w-4 h-4" />}
-                className="font-bold text-sm shadow-md"
+                icon={<MessageCircle className="w-5 h-5" />}
+                className="font-bold text-xs sm:text-sm shadow-md py-3"
               >
-                Generate &amp; Activate Voucher (R{amount.toLocaleString()})
+                Inquire on WhatsApp with Business
               </Button>
-            </form>
-          )}
+              <p className="text-[11px] text-center text-gray-500 dark:text-white/50 mt-1.5 flex items-center justify-center gap-1">
+                <Phone className="w-3 h-3 text-[#25D366]" />
+                Direct inquiry to Lusentic Spa WhatsApp concierge
+              </p>
+            </div>
+          </form>
         </div>
 
       </div>

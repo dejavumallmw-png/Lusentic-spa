@@ -31,7 +31,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addItem = async (itemOrId: number | CartItem) => {
     const updated = await cartService.addItem(itemOrId);
     setCart(updated);
-    setIsOpen(true);
   };
 
   const removeItem = async (index: number) => {

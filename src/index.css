@@ -67,3 +67,13 @@
   background: #d49a9e;
   border-radius: 9999px;
 }
+
+/* Light / Dark Mode strict text contrast */
+.text-contrast-mode {
+  color: #000000;
+}
+.dark .text-contrast-mode,
+[data-theme="dark"] .text-contrast-mode {
+  color: #ffffff;
+}
+

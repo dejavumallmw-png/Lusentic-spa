@@ -1,17 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { INITIAL_GALLERY } from '../../data/initialData';
 import { GalleryItem } from '../../types';
+import { galleryService } from '../../services/galleryService';
 
 export const GallerySection: React.FC = () => {
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('All');
+
+  useEffect(() => {
+    const load = async () => {
+      const data = await galleryService.getAll();
+      setGalleryItems(data);
+    };
+    load();
+    const interval = setInterval(load, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   const categories = ['All', 'Suites', 'Therapies', 'Products', 'Facilities'];
 
   const filtered = filterCategory === 'All'
-    ? INITIAL_GALLERY
-    : INITIAL_GALLERY.filter((item) => item.category === filterCategory);
+    ? galleryItems
+    : galleryItems.filter((item) => item.category.toLowerCase() === filterCategory.toLowerCase());
 
   const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -63,7 +74,7 @@ export const GallerySection: React.FC = () => {
           ))}
         </div>
 
-        {/* Grid (min 250px, aspect-ratio 1/1, radius 16px, hover scale 1.05) */}
+        {/* Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 sm:gap-6">
           {filtered.map((item) => (
             <div

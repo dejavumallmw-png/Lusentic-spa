@@ -63,6 +63,50 @@ export const authService = {
     return newUser;
   },
 
+  async updateProfile(updates: Partial<User>): Promise<User> {
+    const current = this.getCurrentUser();
+    const updated = { ...(current || INITIAL_USERS[0]), ...updates };
+    localStorage.setItem(USER_KEY, JSON.stringify(updated));
+    return updated;
+  },
+
+  async getAllStaff(): Promise<User[]> {
+    const raw = localStorage.getItem('lusentic_spa_staff_list');
+    if (!raw) {
+      const initialStaff = INITIAL_USERS.filter((u) => u.role === 'admin' || u.role === 'receptionist');
+      localStorage.setItem('lusentic_spa_staff_list', JSON.stringify(initialStaff));
+      return initialStaff;
+    }
+    return JSON.parse(raw);
+  },
+
+  async addStaff(data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: 'admin' | 'receptionist';
+    phone?: string;
+    username?: string;
+    avatar?: string;
+  }): Promise<User> {
+    const list = await this.getAllStaff();
+    const newStaff: User = {
+      id: Math.floor(Math.random() * 9000 + 1000),
+      username: data.username || data.email.split('@')[0],
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      role: data.role,
+      phone: data.phone,
+      loyaltyPoints: 0,
+      profilePhoto: data.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
+      avatar: data.avatar,
+    };
+    const updated = [...list, newStaff];
+    localStorage.setItem('lusentic_spa_staff_list', JSON.stringify(updated));
+    return newStaff;
+  },
+
   async switchRole(role: UserRole): Promise<User> {
     const targetUser = INITIAL_USERS.find((u) => u.role === role) || {
       id: 999,

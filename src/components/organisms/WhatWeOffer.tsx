@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Sparkles, Heart, Smile, Footprints, Hand, Feather, Droplets, Gem, Layers } from 'lucide-react';
-import { Treatment, TreatmentCategory } from '../../types';
+import { Treatment } from '../../types';
 import { TreatmentCard } from '../molecules/TreatmentCard';
-import { INITIAL_CATEGORIES, INITIAL_TREATMENTS } from '../../data/initialData';
+import { treatmentService } from '../../services/treatmentService';
+import { categoryService } from '../../services/categoryService';
 
 interface WhatWeOfferProps {
   treatments?: Treatment[];
@@ -11,45 +12,53 @@ interface WhatWeOfferProps {
 }
 
 export const WhatWeOffer: React.FC<WhatWeOfferProps> = ({
-  treatments = INITIAL_TREATMENTS,
+  treatments: propTreatments,
   onAddToCart,
   onBookNow,
 }) => {
-  const [selectedCategory, setSelectedCategory] = useState<TreatmentCategory | 'all'>('all');
+  const [dbTreatments, setDbTreatments] = useState<Treatment[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  const getCategoryIcon = (slug: string) => {
-    switch (slug) {
-      case 'massage':
-        return <Sparkles className="w-4 h-4" />;
-      case 'couples':
-        return <Heart className="w-4 h-4" />;
-      case 'facial':
-        return <Smile className="w-4 h-4" />;
-      case 'pedicure':
-        return <Footprints className="w-4 h-4" />;
-      case 'manicure':
-        return <Hand className="w-4 h-4" />;
-      case 'waxing':
-        return <Feather className="w-4 h-4" />;
-      case 'bodyscrub':
-        return <Droplets className="w-4 h-4" />;
-      case 'addons':
-        return <Gem className="w-4 h-4" />;
-      default:
-        return <Layers className="w-4 h-4" />;
-    }
+  useEffect(() => {
+    const load = async () => {
+      const [tData, cData] = await Promise.all([
+        treatmentService.getAll(),
+        categoryService.getAll(),
+      ]);
+      setDbTreatments(tData);
+      setCategories(cData.map((c) => c.label));
+    };
+    load();
+    const interval = setInterval(load, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const allTreatments = propTreatments || dbTreatments;
+
+  const getCategoryIcon = (name: string) => {
+    const lower = name.toLowerCase();
+    if (lower.includes('massage')) return <Sparkles className="w-4 h-4" />;
+    if (lower.includes('couples')) return <Heart className="w-4 h-4" />;
+    if (lower.includes('facial')) return <Smile className="w-4 h-4" />;
+    if (lower.includes('pedicure')) return <Footprints className="w-4 h-4" />;
+    if (lower.includes('manicure')) return <Hand className="w-4 h-4" />;
+    if (lower.includes('wax')) return <Feather className="w-4 h-4" />;
+    if (lower.includes('scrub')) return <Droplets className="w-4 h-4" />;
+    if (lower.includes('addon')) return <Gem className="w-4 h-4" />;
+    return <Layers className="w-4 h-4" />;
   };
 
   const filteredTreatments = useMemo(() => {
-    if (selectedCategory === 'all') return treatments;
-    return treatments.filter((t) => t.category === selectedCategory);
-  }, [treatments, selectedCategory]);
+    if (selectedCategory === 'all') return allTreatments;
+    return allTreatments.filter((t) => t.category.toLowerCase() === selectedCategory.toLowerCase());
+  }, [allTreatments, selectedCategory]);
 
   return (
     <section id="services" className="py-16 sm:py-24 bg-[var(--bg-light)]/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Section Header (Photo 2 "Our Premium Spa Therapies") */}
+        {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-12">
           <p className="text-xs font-bold uppercase tracking-widest text-[#d49a9e] mb-2">
             Our Services &amp; Therapies
@@ -67,7 +76,7 @@ export const WhatWeOffer: React.FC<WhatWeOfferProps> = ({
           </p>
         </div>
 
-        {/* Category Filter Pills (Photo 2 style + PDF 8 categories) */}
+        {/* Dynamic Category Filter Pills */}
         <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-4 mb-10 no-scrollbar">
           <button
             onClick={() => setSelectedCategory('all')}
@@ -78,24 +87,24 @@ export const WhatWeOffer: React.FC<WhatWeOfferProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>All Therapies ({treatments.length})</span>
+            <span>All Therapies ({allTreatments.length})</span>
           </button>
 
-          {INITIAL_CATEGORIES.map((cat) => {
-            const count = treatments.filter((t) => t.category === cat.slug).length;
-            const isSelected = selectedCategory === cat.slug;
+          {categories.map((cat) => {
+            const count = allTreatments.filter((t) => t.category.toLowerCase() === cat.toLowerCase()).length;
+            const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
             return (
               <button
-                key={cat.slug}
-                onClick={() => setSelectedCategory(cat.slug)}
-                className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer flex items-center gap-1.5 capitalize ${
                   isSelected
                     ? 'bg-[#e8b4b8] text-[#1a1418] shadow-md scale-105 font-bold'
                     : 'bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--text-primary)] hover:border-[#e8b4b8]'
                 }`}
               >
-                {getCategoryIcon(cat.slug)}
-                <span>{cat.label}</span>
+                {getCategoryIcon(cat)}
+                <span>{cat}</span>
                 <span className="opacity-60 text-[10px]">({count})</span>
               </button>
             );

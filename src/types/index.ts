@@ -9,8 +9,11 @@ export interface User {
   role: UserRole;
   phone?: string;
   profilePhoto?: string;
+  avatar?: string;
   loyaltyPoints: number;
 }
+
+export type UserProfile = User;
 
 export interface AuthState {
   user: User | null;
@@ -19,22 +22,14 @@ export interface AuthState {
   error: string | null;
 }
 
-export type TreatmentCategory =
-  | 'massage'
-  | 'couples'
-  | 'facial'
-  | 'pedicure'
-  | 'manicure'
-  | 'waxing'
-  | 'bodyscrub'
-  | 'addons';
+export type TreatmentCategory = string;
 
 export interface Treatment {
   id: number;
   name: string;
   price: number; // in South African Rand (R) as in spec
   duration: number; // minutes
-  category: TreatmentCategory;
+  category: string;
   image?: string;
   imageUrl?: string;
   isMonthlySpecial: boolean;
@@ -43,10 +38,31 @@ export interface Treatment {
 }
 
 export interface CategoryInfo {
-  slug: TreatmentCategory;
+  slug: string;
   label: string;
   iconName: string;
   description?: string;
+}
+
+export interface SiteSettings {
+  brandName: string;
+  brandSuffix: string;
+  businessName?: string;
+  tagline: string;
+  phone: string;
+  whatsappNumber: string;
+  email: string;
+  address: string;
+  operatingHours?: string;
+  instagram: string;
+  tiktok: string;
+  logoUrl?: string;
+  socials?: {
+    instagram?: string;
+    facebook?: string;
+    tiktok?: string;
+    whatsapp?: string;
+  };
 }
 
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -127,7 +143,11 @@ export interface ArticleItem {
   summary: string;
   content: string;
   author: string;
+  imageUrl?: string;
+  excerpt?: string;
 }
+
+export type Article = ArticleItem;
 
 export interface GalleryItem {
   id: number;

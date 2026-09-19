@@ -1,5 +1,7 @@
 import { Booking, BookingFormData, BookingStatus } from '../types';
-import { INITIAL_BOOKINGS, INITIAL_TREATMENTS, INITIAL_THERAPISTS } from '../data/initialData';
+import { INITIAL_BOOKINGS } from '../data/initialData';
+import { treatmentService } from './treatmentService';
+import { therapistService } from './therapistService';
 
 const BOOKINGS_KEY = 'lusentic_spa_bookings';
 
@@ -45,8 +47,8 @@ export const bookingService = {
 
   async createBooking(formData: BookingFormData, clientUserId?: number): Promise<Booking> {
     const all = getStoredBookings();
-    const treatments = INITIAL_TREATMENTS;
-    const therapists = INITIAL_THERAPISTS;
+    const treatments = await treatmentService.getAll();
+    const therapists = await therapistService.getAll();
 
     const treatment = treatments.find((t) => t.id === formData.treatmentId);
     const therapist = therapists.find((th) => th.id === formData.therapistId);

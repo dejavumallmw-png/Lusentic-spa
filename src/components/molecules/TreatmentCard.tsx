@@ -68,7 +68,7 @@ export const TreatmentCard: React.FC<TreatmentCardProps> = ({
         </div>
 
         {treatment.description && (
-          <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 line-clamp-2 mb-4 leading-relaxed font-medium">
+          <p className="text-xs sm:text-sm text-black dark:text-stone-300 line-clamp-2 mb-4 leading-relaxed font-bold dark:font-medium">
             {treatment.description}
           </p>
         )}

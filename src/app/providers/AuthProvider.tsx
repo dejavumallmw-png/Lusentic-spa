@@ -7,6 +7,8 @@ interface AuthContextValue {
   role: UserRole;
   isAuthenticated: boolean;
   login: (emailOrUser: string, role?: UserRole) => Promise<User>;
+  loginClient: (phone: string, pin: string) => Promise<User>;
+  registerClient: (data: { name: string; phone: string; pin: string; email?: string; photo?: string }) => Promise<User>;
   register: (data: { firstName: string; lastName: string; email: string; phone?: string }) => Promise<User>;
   switchRole: (role: UserRole) => Promise<User>;
   logout: () => Promise<void>;
@@ -22,6 +24,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const current = authService.getCurrentUser();
     setUser(current);
   }, []);
+
+  const loginClient = async (phone: string, pin: string) => {
+    const logged = await authService.loginClient(phone, pin);
+    setUser(logged);
+    return logged;
+  };
+
+  const registerClient = async (data: { name: string; phone: string; pin: string; email?: string; photo?: string }) => {
+    const registered = await authService.registerClient(data);
+    setUser(registered);
+    return registered;
+  };
 
   const login = async (emailOrUser: string, role: UserRole = 'client') => {
     const logged = await authService.login(emailOrUser, role);
@@ -50,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     const updated = { ...user, ...updates };
     setUser(updated);
-    localStorage.setItem('lusentic_spa_user', JSON.stringify(updated));
+    authService.updateProfile(updates).catch(() => {});
   };
 
   return (
@@ -60,6 +74,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: user?.role || 'client',
         isAuthenticated: !!user,
         login,
+        loginClient,
+        registerClient,
         register,
         switchRole,
         logout,

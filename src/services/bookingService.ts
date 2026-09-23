@@ -19,12 +19,20 @@ function getStoredBookings(): Booking[] {
   try {
     const raw = localStorage.getItem(BOOKINGS_KEY);
     if (!raw) {
-      localStorage.setItem(BOOKINGS_KEY, JSON.stringify(INITIAL_BOOKINGS));
-      return INITIAL_BOOKINGS;
+      localStorage.setItem(BOOKINGS_KEY, JSON.stringify([]));
+      return [];
     }
-    return JSON.parse(raw);
+    const list = JSON.parse(raw);
+    // Remove obsolete initial seed bookings if present
+    const cleaned = Array.isArray(list)
+      ? list.filter((b: any) => !b.bookingId?.includes('4829') && !b.bookingId?.includes('1044') && !b.bookingId?.includes('9182') && !b.bookingId?.includes('3392') && !b.bookingId?.includes('7721'))
+      : [];
+    if (cleaned.length !== list.length) {
+      localStorage.setItem(BOOKINGS_KEY, JSON.stringify(cleaned));
+    }
+    return cleaned;
   } catch {
-    return INITIAL_BOOKINGS;
+    return [];
   }
 }
 

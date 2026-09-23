@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle2, MessageSquare, ArrowRight, Calendar, UserCheck } from 'lucide-react';
 import { Booking } from '../../types';
 import { Button } from '../atoms/Button';
+import { settingsService } from '../../services/settingsService';
 
 interface SuccessModalProps {
   booking: Booking | null;
@@ -16,8 +17,13 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
 }) => {
   if (!booking) return null;
 
+  const settings = settingsService.getSettings();
+  const brandName = `${settings.brandName || 'Lusentic'} ${settings.brandSuffix || 'Spa'}`.trim();
+  const rawPhone = settings.socials?.whatsapp || settings.phone || '27825550192';
+  const cleanPhone = rawPhone.replace(/\D/g, '') || '27825550192';
+
   const whatsappMessage = encodeURIComponent(
-    `Hello Lusentic Spa! I just booked an appointment.\nBooking ID: ${booking.bookingId}\nTreatment: ${booking.treatmentName}\nDate: ${booking.date} at ${booking.time}\nName: ${booking.clientName}`
+    `Hello ${brandName}! I just booked an appointment.\nBooking ID: ${booking.bookingId}\nTreatment: ${booking.treatmentName}\nDate: ${booking.date} at ${booking.time}\nName: ${booking.clientName}`
   );
 
   return (
@@ -84,7 +90,7 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
         {/* Action Buttons */}
         <div className="flex flex-col gap-2.5 w-full">
           <a
-            href={`https://wa.me/27825550192?text=${whatsappMessage}`}
+            href={`https://wa.me/${cleanPhone}?text=${whatsappMessage}`}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full inline-flex items-center justify-center gap-2 py-3 px-6 rounded-full bg-white hover:bg-gray-100 text-[#1a1418] font-bold text-sm shadow-md transition-all cursor-pointer"

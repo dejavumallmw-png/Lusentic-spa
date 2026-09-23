@@ -3,11 +3,12 @@ export type UserRole = 'client' | 'receptionist' | 'admin';
 export interface User {
   id: number;
   username: string;
-  email: string;
+  email?: string;
   firstName: string;
-  lastName: string;
+  lastName?: string;
   role: UserRole;
   phone?: string;
+  pin?: string;
   profilePhoto?: string;
   avatar?: string;
   loyaltyPoints: number;
@@ -95,6 +96,7 @@ export interface BookingFormData {
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
+  clientId?: number;
   notes?: string;
 }
 

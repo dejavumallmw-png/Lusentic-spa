@@ -1,6 +1,9 @@
-import React from 'react';
-import { ArrowRight, Sparkles, Leaf, Award, ShieldCheck, HeartHandshake, Gift } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, Sparkles, Leaf, Award, ShieldCheck, HeartHandshake } from 'lucide-react';
 import { Button } from '../atoms/Button';
+import { SparkleEmblem } from '../atoms/SparkleEmblem';
+import { SiteSettings } from '../../types';
+import { settingsService } from '../../services/settingsService';
 
 interface HeroProps {
   onOpenBooking: () => void;
@@ -13,6 +16,15 @@ export const Hero: React.FC<HeroProps> = ({
   onExploreServices,
   onOpenVoucher,
 }) => {
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(settingsService.getSettings());
+
+  useEffect(() => {
+    const unsub = settingsService.subscribe((updated) => {
+      setSiteSettings(updated);
+    });
+    return () => unsub();
+  }, []);
+
   return (
     <section id="hero" className="relative pt-6 pb-16 md:pt-10 md:pb-24 overflow-hidden">
       {/* Background Subtle Gradient & Glow */}
@@ -23,7 +35,18 @@ export const Hero: React.FC<HeroProps> = ({
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Centered Sample Presentation Section (Directly from sampl.png) */}
-        <div className="flex flex-col items-center text-center max-w-3xl mx-auto pt-2 pb-10 sm:pb-12">
+        <div className="flex flex-col items-center text-center max-w-3xl mx-auto pb-10 sm:pb-12">
+          {/* Logo Emblem & Brand Title */}
+          <div className="flex flex-col items-center justify-center mb-6 select-none">
+            <SparkleEmblem size="lg" customLogo={siteSettings.logoUrl} className="mb-3" />
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-stone-900 dark:text-white flex items-baseline justify-center gap-2 font-serif-luxury">
+              <span>{siteSettings.brandName || 'Lusentic'}</span>
+              <span className="font-light italic text-[#b57377] dark:text-[#e8b4b8]">
+                {siteSettings.brandSuffix || 'Spa'}
+              </span>
+            </h1>
+          </div>
+
           {/* 1. Pill container from sampl.png */}
           <div className="inline-flex items-center gap-2.5 px-6 py-2 rounded-full border-2 border-black dark:border-[#e8b4b8] bg-[var(--bg-card)] text-black dark:text-white text-sm sm:text-base font-extrabold tracking-wide uppercase shadow-sm mb-5">
             <Sparkles className="w-4 h-4 text-[#d49a9e]" />
@@ -78,10 +101,10 @@ export const Hero: React.FC<HeroProps> = ({
             <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
             
             {/* Floating Glass Pill on the image */}
-            <div className="absolute bottom-5 left-5 right-5 p-4 rounded-2xl bg-white/90 dark:bg-[#1a1418]/90 backdrop-blur-md border border-white/30 dark:border-white/10 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div className="absolute bottom-5 left-5 right-5 p-4 rounded-2xl bg-black/80 dark:bg-[#1a1418]/90 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div>
-                <p className="text-xs uppercase font-bold tracking-wider text-[#d49a9e]">Special Welcome</p>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">Complimentary Herbal Tea &amp; Foot Soak with Every Session</p>
+                <p className="text-xs uppercase font-extrabold tracking-wider text-[#e8b4b8] dark:text-[#d49a9e]">Special Welcome</p>
+                <p className="text-sm font-extrabold text-white">Complimentary Herbal Tea &amp; Foot Soak with Every Session</p>
               </div>
               <span className="px-3.5 py-1 rounded-full bg-[#e8b4b8] text-[#1a1418] text-xs font-bold whitespace-nowrap">
                 All Guests
@@ -90,26 +113,26 @@ export const Hero: React.FC<HeroProps> = ({
           </div>
 
           {/* Decorative Secondary Glass Badge */}
-          <div className="absolute -top-4 -right-2 sm:-right-4 p-4 rounded-2xl bg-white/95 dark:bg-[#1e1e1e]/95 backdrop-blur-md shadow-xl border border-[var(--border-light)] hidden sm:flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#f5edea] dark:bg-[#2d2228] flex items-center justify-center text-[#d49a9e]">
+          <div className="absolute -top-4 -right-2 sm:-right-4 p-4 rounded-2xl bg-black/85 dark:bg-[#1e1e1e]/95 backdrop-blur-md shadow-xl border border-white/15 hidden sm:flex items-center gap-3 text-white">
+            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-[#e8b4b8]">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-[var(--text-primary)]">Rated 4.9 / 5.0</p>
-              <p className="text-[11px] text-[var(--text-muted)]">Over 1,200+ relaxed guests</p>
+              <p className="text-xs font-extrabold text-white">Rated 4.9 / 5.0</p>
+              <p className="text-[11px] font-bold text-white/90">Over 1,200+ relaxed guests</p>
             </div>
           </div>
         </div>
 
-        {/* 4 Feature Badges (From Photo 2 NIRVANA SPA: Natural Products, Expert Therapists, Hygiene & Care, Relaxing Environment) */}
+        {/* 4 Feature Badges (Natural Products, Expert Therapists, Hygiene & Care, Pure Environment) */}
         <div className="mt-14 sm:mt-16 pt-8 border-t border-[var(--border-light)] grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-light)] shadow-xs">
             <div className="w-11 h-11 rounded-full bg-[#f5edea] dark:bg-[#2d2228] flex items-center justify-center text-[#d49a9e] shrink-0">
               <Leaf className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-white">Natural Products</h4>
-              <p className="text-[11px] sm:text-xs text-stone-600 dark:text-stone-300 font-medium">100% Organic &amp; Pure</p>
+              <h4 className="text-xs sm:text-sm font-black text-black dark:text-white">Natural Products</h4>
+              <p className="text-[11px] sm:text-xs text-black dark:text-stone-300 font-bold dark:font-medium">100% Organic &amp; Pure</p>
             </div>
           </div>
 
@@ -118,8 +141,8 @@ export const Hero: React.FC<HeroProps> = ({
               <Award className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-white">Expert Therapists</h4>
-              <p className="text-[11px] sm:text-xs text-stone-600 dark:text-stone-300 font-medium">Well Trained &amp; Certified</p>
+              <h4 className="text-xs sm:text-sm font-black text-black dark:text-white">Expert Therapists</h4>
+              <p className="text-[11px] sm:text-xs text-black dark:text-stone-300 font-bold dark:font-medium">Well Trained &amp; Certified</p>
             </div>
           </div>
 
@@ -128,8 +151,8 @@ export const Hero: React.FC<HeroProps> = ({
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-white">Hygiene &amp; Care</h4>
-              <p className="text-[11px] sm:text-xs text-stone-600 dark:text-stone-300 font-medium">Hospital-Grade Clean</p>
+              <h4 className="text-xs sm:text-sm font-black text-black dark:text-white">Hygiene &amp; Care</h4>
+              <p className="text-[11px] sm:text-xs text-black dark:text-stone-300 font-bold dark:font-medium">Hospital-Grade Clean</p>
             </div>
           </div>
 
@@ -138,8 +161,8 @@ export const Hero: React.FC<HeroProps> = ({
               <HeartHandshake className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-white">Pure Environment</h4>
-              <p className="text-[11px] sm:text-xs text-stone-600 dark:text-stone-300 font-medium">Peaceful, Calm Sanctuary</p>
+              <h4 className="text-xs sm:text-sm font-black text-black dark:text-white">Pure Environment</h4>
+              <p className="text-[11px] sm:text-xs text-black dark:text-stone-300 font-bold dark:font-medium">Peaceful, Calm Sanctuary</p>
             </div>
           </div>
         </div>

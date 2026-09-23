@@ -85,8 +85,8 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-stone-900 dark:text-white">Luxury &amp; Comfort</h4>
-                    <p className="text-xs text-stone-600 dark:text-stone-300 font-medium leading-relaxed">
+                    <h4 className="text-sm font-black text-black dark:text-white">Luxury &amp; Comfort</h4>
+                    <p className="text-xs text-black dark:text-stone-300 font-bold dark:font-medium leading-relaxed">
                       Experience 5-star comfort, heated organic treatment tables, and soundproof private suites.
                     </p>
                   </div>
@@ -97,8 +97,8 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
                     <HeartHandshake className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-stone-900 dark:text-white">Personalized Care</h4>
-                    <p className="text-xs text-stone-600 dark:text-stone-300 font-medium leading-relaxed">
+                    <h4 className="text-sm font-black text-black dark:text-white">Personalized Care</h4>
+                    <p className="text-xs text-black dark:text-stone-300 font-bold dark:font-medium leading-relaxed">
                       Every pressure, essential oil blend, and temperature is adjusted specifically for you.
                     </p>
                   </div>
@@ -109,8 +109,8 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
                     <ShieldCheck className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-stone-900 dark:text-white">Certified Natural</h4>
-                    <p className="text-xs text-stone-600 dark:text-stone-300 font-medium leading-relaxed">
+                    <h4 className="text-sm font-black text-black dark:text-white">Certified Natural</h4>
+                    <p className="text-xs text-black dark:text-stone-300 font-bold dark:font-medium leading-relaxed">
                       Cruelty-free, vegan organic formulas free of artificial preservatives, parabens, and perfumes.
                     </p>
                   </div>

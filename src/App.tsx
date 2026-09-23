@@ -31,10 +31,11 @@ import { AuthModal } from './components/organisms/AuthModal';
 
 import { Treatment, Therapist, Booking, BookingFormData } from './types';
 import { bookingService } from './services/bookingService';
+import { treatmentService } from './services/treatmentService';
 
 const MainAppContent: React.FC = () => {
   const { role, switchRole } = useAuth();
-  const { addItem, openCart } = useCart();
+  const { cart, addItem, clearCart, openCart } = useCart();
 
   // Primary view state
   const [activeView, setActiveView] = useState<'home' | 'client-dashboard' | 'admin-dashboard'>('home');
@@ -137,11 +138,19 @@ const MainAppContent: React.FC = () => {
     const newBooking = await bookingService.createBooking(formData);
     setIsBookingOpen(false);
     setConfirmedBooking(newBooking);
+    clearCart();
     showToast('Your booking was successfully placed!');
   };
 
-  const handleCheckoutFromCart = () => {
-    handleOpenBooking(selectedTreatment || undefined);
+  const handleCheckoutFromCart = async () => {
+    if (cart.items.length > 0) {
+      const firstItem = cart.items[0];
+      const allTreatments = await treatmentService.getAll();
+      const match = allTreatments.find((t) => t.id === firstItem.id);
+      handleOpenBooking(match || undefined);
+    } else {
+      handleOpenBooking(selectedTreatment || undefined);
+    }
   };
 
   return (

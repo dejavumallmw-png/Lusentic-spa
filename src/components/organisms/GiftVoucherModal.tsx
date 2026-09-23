@@ -170,21 +170,21 @@ Please guide me through the payment and voucher delivery process. Thank you!`;
           <form onSubmit={handleWhatsAppInquiry} className="space-y-3.5">
             {/* Treatment Selector */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-white/70 mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 mb-1.5">
                 What Treatment Would You Like to Gift? *
               </label>
               <select
                 value={selectedTreatment}
                 onChange={handleTreatmentChange}
                 required
-                className="w-full h-11 px-3.5 rounded-xl border border-gray-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8]"
+                className="w-full h-11 px-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-xs text-stone-900 dark:text-white focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8] focus:bg-white dark:focus:bg-[#1a1418] transition-all"
               >
                 {treatments.map((t) => (
-                  <option key={t.id} value={t.name} className="bg-white dark:bg-[#1a1418] text-gray-900 dark:text-white">
+                  <option key={t.id} value={t.name} className="bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white">
                     {t.name} (R{t.price} • {t.duration} min)
                   </option>
                 ))}
-                <option value="Custom Sanctuary Pamper Package" className="bg-white dark:bg-[#1a1418] text-gray-900 dark:text-white">
+                <option value="Custom Sanctuary Pamper Package" className="bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white">
                   Custom Sanctuary Pamper Package (Value of your choice)
                 </option>
               </select>
@@ -198,7 +198,7 @@ Please guide me through the payment and voucher delivery process. Thank you!`;
                 value={gifterName}
                 onChange={(e) => setGifterName(e.target.value)}
                 required
-                className="bg-stone-50 dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white placeholder-gray-400"
+                className="bg-stone-50 dark:bg-white/10 border-stone-300 dark:border-white/20 text-stone-900 dark:text-white placeholder:text-stone-400"
               />
               <Input
                 label="Recipient's Name *"
@@ -206,13 +206,13 @@ Please guide me through the payment and voucher delivery process. Thank you!`;
                 value={recipientName}
                 onChange={(e) => setRecipientName(e.target.value)}
                 required
-                className="bg-stone-50 dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white placeholder-gray-400"
+                className="bg-stone-50 dark:bg-white/10 border-stone-300 dark:border-white/20 text-stone-900 dark:text-white placeholder:text-stone-400"
               />
             </div>
 
             {/* Special Message */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-white/70 mb-1">
+              <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 mb-1">
                 Special Message for the Recipient
               </label>
               <textarea
@@ -220,7 +220,7 @@ Please guide me through the payment and voucher delivery process. Thank you!`;
                 value={specialMessage}
                 onChange={(e) => setSpecialMessage(e.target.value)}
                 placeholder="Write a sweet birthday, anniversary, or self-care note..."
-                className="w-full p-3 rounded-xl border border-gray-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8] resize-none placeholder-gray-400"
+                className="w-full p-3 rounded-xl border border-stone-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-xs text-stone-900 dark:text-white focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8] focus:bg-white dark:focus:bg-[#1a1418] transition-all resize-none placeholder:text-stone-400"
               />
             </div>
 

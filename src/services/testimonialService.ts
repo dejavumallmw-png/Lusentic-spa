@@ -7,12 +7,20 @@ function getStoredTestimonials(): Testimonial[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_TESTIMONIALS));
-      return INITIAL_TESTIMONIALS;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+      return [];
     }
-    return JSON.parse(raw);
+    const list = JSON.parse(raw);
+    const seedNames = ['Priya S.', 'Liam Botha', 'Claire Dupont', 'Marcus & Jessica Sterling'];
+    const cleaned = Array.isArray(list)
+      ? list.filter((t: any) => !seedNames.includes(t.name))
+      : [];
+    if (cleaned.length !== list.length) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+    }
+    return cleaned;
   } catch {
-    return INITIAL_TESTIMONIALS;
+    return [];
   }
 }
 

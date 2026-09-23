@@ -7,11 +7,9 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
-  Plus,
   ArrowLeft,
   UserCheck,
   Camera,
-  Phone,
   User,
   Star,
   MessageSquarePlus,
@@ -48,8 +46,10 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
   // Profile Form state
   const [phone, setPhone] = useState(user?.phone || '');
-  const [username, setUsername] = useState(user?.username || '');
-  const [avatar, setAvatar] = useState(user?.avatar || '');
+  const [firstName, setFirstName] = useState(user?.firstName || '');
+  const [lastName, setLastName] = useState(user?.lastName || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [avatar, setAvatar] = useState(user?.profilePhoto || user?.avatar || '');
   const [profileSaved, setProfileSaved] = useState(false);
 
   // Review Form state
@@ -83,8 +83,10 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
   useEffect(() => {
     if (user) {
       setPhone(user.phone || '');
-      setUsername(user.username || '');
-      setAvatar(user.avatar || '');
+      setFirstName(user.firstName || '');
+      setLastName(user.lastName || '');
+      setEmail(user.email || '');
+      setAvatar(user.profilePhoto || user.avatar || '');
     }
   }, [user]);
 
@@ -93,14 +95,16 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
     loadData();
   };
 
-  // Handle Photo selection from internal device storage
+  // Handle Photo selection from device storage
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === 'string') {
-          setAvatar(reader.result);
+          const photoUrl = reader.result;
+          setAvatar(photoUrl);
+          updateProfile({ profilePhoto: photoUrl, avatar: photoUrl });
         }
       };
       reader.readAsDataURL(file);
@@ -109,7 +113,14 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateProfile({ phone, username, avatar });
+    await updateProfile({
+      phone,
+      firstName,
+      lastName,
+      email: email.trim() || undefined,
+      profilePhoto: avatar,
+      avatar,
+    });
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 3000);
   };
@@ -120,14 +131,19 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
     setReviewSubmitting(true);
     try {
-      const clientFullName = user ? (user.username || `${user.firstName} ${user.lastName}`) : 'Verified Guest';
+      const clientFullName = user
+        ? `${user.firstName} ${user.lastName || ''}`.trim() || user.username
+        : 'Verified Guest';
+      
+      const photoToUse = avatar || user?.profilePhoto || user?.avatar;
+
       await testimonialService.addTestimonial({
         name: clientFullName,
         role: 'Verified Sanctuary Guest',
         treatment: reviewTreatment,
         stars: reviewStars,
-        content: reviewContent,
-        avatar: avatar || user?.avatar || user?.profilePhoto,
+        content: reviewContent.trim(),
+        avatar: photoToUse || undefined,
       });
 
       setReviewSuccess(true);
@@ -141,15 +157,28 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
     }
   };
 
-  // Stats calculation
-  const totalBookings = bookings.length;
-  const pendingCount = bookings.filter((b) => b.status === 'pending').length;
-  const confirmedCount = bookings.filter((b) => b.status === 'confirmed').length;
-  const completedCount = bookings.filter((b) => b.status === 'completed').length;
+  // Filter bookings for this client
+  const clientBookings = bookings.filter((b) => {
+    if (!user) return true;
+    const userDigits = (user.phone || '').replace(/\D/g, '');
+    const bookDigits = (b.clientPhone || '').replace(/\D/g, '');
+    return (
+      b.clientId === user.id ||
+      (userDigits && bookDigits && userDigits.endsWith(bookDigits.slice(-9))) ||
+      b.clientName.toLowerCase() === `${user.firstName} ${user.lastName || ''}`.trim().toLowerCase()
+    );
+  });
 
-  const filteredBookings = statusFilter === 'all'
-    ? bookings
-    : bookings.filter((b) => b.status === statusFilter);
+  // Dynamic stats calculation (only active/posted bookings appear)
+  const totalBookings = clientBookings.length;
+  const pendingCount = clientBookings.filter((b) => b.status === 'pending').length;
+  const confirmedCount = clientBookings.filter((b) => b.status === 'confirmed').length;
+  const completedCount = clientBookings.filter((b) => b.status === 'completed').length;
+
+  const filteredBookings =
+    statusFilter === 'all'
+      ? clientBookings
+      : clientBookings.filter((b) => b.status === statusFilter);
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] py-8 sm:py-12">
@@ -159,98 +188,97 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
         <div className="flex items-center justify-between">
           <button
             onClick={onBackToHome}
-            className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Sanctuary Home</span>
           </button>
 
-          <span className="text-xs text-[var(--text-muted)] font-medium">
+          <span className="text-xs text-stone-600 dark:text-stone-400 font-medium">
             Client Sanctuary Portal • Lusentic Spa
           </span>
         </div>
 
         {/* Welcome Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-8 rounded-[24px] bg-[var(--bg-card)] border border-[var(--border-light)] shadow-[var(--shadow)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-8 rounded-[24px] bg-[var(--bg-card)] border border-stone-200 dark:border-white/10 shadow-[var(--shadow)]">
           <div className="flex items-center gap-4">
             <div className="relative">
-              {avatar || user?.avatar ? (
+              {avatar || user?.profilePhoto || user?.avatar ? (
                 <img
-                  src={avatar || user?.avatar}
+                  src={avatar || user?.profilePhoto || user?.avatar}
                   alt={user?.firstName || 'Client'}
-                  className="w-16 h-16 rounded-full object-cover border-2 border-[#e8b4b8] shadow-md"
+                  className="w-16 h-16 rounded-full object-cover border-2 border-[#b57377] dark:border-[#e8b4b8] shadow-md"
                 />
               ) : (
                 <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#d49a9e] to-[#e8b4b8] text-[#1a1418] text-xl font-bold flex items-center justify-center shadow-md">
-                  {user ? user.firstName.charAt(0) : 'A'}
+                  {user ? user.firstName.charAt(0) : 'C'}
                 </div>
               )}
             </div>
 
             <div>
               <div className="flex items-center gap-3 mb-1">
-                <h1 className="font-serif-luxury text-2xl sm:text-3xl font-light text-[var(--text-primary)]">
-                  Welcome, <span className="font-normal text-[#d49a9e] italic">{user ? (user.username || user.firstName) : 'Amanda'}</span>
+                <h1 className="font-serif-luxury text-2xl sm:text-3xl font-light text-stone-900 dark:text-white">
+                  Welcome, <span className="font-bold text-[#b57377] dark:text-[#d49a9e] italic">{user ? user.firstName : 'Guest'}</span>
                 </h1>
                 
                 {/* Loyalty Badge */}
                 <Badge variant="gold" className="px-3 py-1 shadow-xs">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>{user?.loyaltyPoints || 140} pts</span>
+                  <span>{user?.loyaltyPoints || 50} pts</span>
                 </Badge>
               </div>
-
-              <p className="text-xs sm:text-sm text-[var(--text-muted)]">
-                Logged in as <strong className="text-[var(--text-primary)]">{user?.email || 'amanda.guest@lusenticspa.com'}</strong> • Phone: {user?.phone || 'Not set'}
+              <p className="text-xs text-stone-600 dark:text-white/60">
+                {user?.phone ? `Account Contact: ${user.phone}` : 'Sanctuary Member'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <Button
               variant="primary"
-              size="md"
-              icon={<Plus className="w-4 h-4" />}
+              size="sm"
               onClick={onBookNewSession}
-              className="text-xs sm:text-sm font-bold shadow-md"
+              icon={<Sparkles className="w-4 h-4" />}
+              className="font-bold text-xs shadow-md"
             >
-              Book Session
+              Book New Session
             </Button>
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-[var(--border-light)] pb-2 overflow-x-auto">
+        {/* Dashboard Navigation Tabs */}
+        <div className="flex border-b border-stone-200 dark:border-white/10 gap-2 overflow-x-auto pb-1">
           <button
             onClick={() => setActiveTab('bookings')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === 'bookings'
-                ? 'bg-[#e8b4b8] text-[#1a1418] shadow-sm'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/5'
+                ? 'bg-[#b57377] text-white dark:bg-[#e8b4b8] dark:text-[#1a1418] shadow-sm'
+                : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
             }`}
           >
             <Calendar className="w-4 h-4" />
-            <span>My Bookings &amp; History ({bookings.length})</span>
+            <span>My Bookings ({totalBookings})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('profile')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === 'profile'
-                ? 'bg-[#e8b4b8] text-[#1a1418] shadow-sm'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/5'
+                ? 'bg-[#b57377] text-white dark:bg-[#e8b4b8] dark:text-[#1a1418] shadow-sm'
+                : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
             }`}
           >
-            <Camera className="w-4 h-4" />
-            <span>Profile Photo &amp; Phone</span>
+            <User className="w-4 h-4" />
+            <span>Profile &amp; Photo</span>
           </button>
 
           <button
             onClick={() => setActiveTab('review')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === 'review'
-                ? 'bg-[#e8b4b8] text-[#1a1418] shadow-sm'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/5'
+                ? 'bg-[#b57377] text-white dark:bg-[#e8b4b8] dark:text-[#1a1418] shadow-sm'
+                : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
             }`}
           >
             <MessageSquarePlus className="w-4 h-4" />
@@ -261,7 +289,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
         {/* TAB 1: BOOKINGS */}
         {activeTab === 'bookings' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            {/* Stats Grid */}
+            {/* Dynamic Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               <StatCard
                 title="Total Bookings"
@@ -293,13 +321,13 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
             </div>
 
             {/* Bookings Table */}
-            <div className="rounded-[20px] bg-[var(--bg-card)] border border-[var(--border-light)] shadow-[var(--shadow)] p-5 sm:p-[25px]">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[var(--border-light)]">
+            <div className="rounded-[24px] bg-[var(--bg-card)] border border-stone-200 dark:border-white/10 shadow-[var(--shadow)] p-5 sm:p-[25px]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-stone-200 dark:border-white/10">
                 <div>
-                  <h2 className="text-lg font-bold text-[var(--text-primary)]">
+                  <h2 className="text-lg font-bold text-stone-900 dark:text-white">
                     Appointments History &amp; Upcoming
                   </h2>
-                  <p className="text-xs text-[var(--text-muted)]">
+                  <p className="text-xs text-stone-600 dark:text-stone-400">
                     Real-time booking status managed by Lusentic Spa reception
                   </p>
                 </div>
@@ -312,8 +340,8 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                       onClick={() => setStatusFilter(status)}
                       className={`px-3 py-1 rounded-full text-xs font-semibold capitalize transition-all cursor-pointer ${
                         statusFilter === status
-                          ? 'bg-[#e8b4b8] text-[#1a1418] font-bold shadow-xs'
-                          : 'bg-black/5 dark:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                          ? 'bg-[#b57377] text-white dark:bg-[#e8b4b8] dark:text-[#1a1418] font-bold shadow-xs'
+                          : 'bg-stone-100 dark:bg-white/5 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white'
                       }`}
                     >
                       {status}
@@ -323,14 +351,18 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
               </div>
 
               {loading ? (
-                <div className="py-12 text-center text-sm text-[var(--text-muted)]">
+                <div className="py-12 text-center text-sm text-stone-600 dark:text-stone-400">
                   Loading your appointments...
                 </div>
               ) : filteredBookings.length === 0 ? (
-                <div className="py-16 text-center text-[var(--text-muted)]">
-                  <Calendar className="w-10 h-10 mx-auto text-[#d49a9e] opacity-40 mb-3" />
-                  <p className="text-base font-medium text-[var(--text-primary)]">No appointments found</p>
-                  <p className="text-xs mt-1 mb-4">You have no bookings matching this status.</p>
+                <div className="py-16 text-center text-stone-600 dark:text-stone-400">
+                  <Calendar className="w-10 h-10 mx-auto text-[#b57377] opacity-50 mb-3" />
+                  <p className="text-base font-bold text-stone-900 dark:text-white">No appointments found</p>
+                  <p className="text-xs mt-1 mb-5">
+                    {totalBookings === 0
+                      ? 'You have not booked any appointments yet. Once you place a reservation, it will appear here in real time.'
+                      : 'You have no bookings matching this status filter.'}
+                  </p>
                   <Button variant="primary" size="sm" onClick={onBookNewSession}>
                     Book a Session Now
                   </Button>
@@ -339,7 +371,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs sm:text-sm">
                     <thead>
-                      <tr className="border-b border-[var(--border-light)] text-[var(--text-muted)] text-[11px] uppercase tracking-wider">
+                      <tr className="border-b border-stone-200 dark:border-white/10 text-stone-600 dark:text-stone-400 text-[11px] uppercase tracking-wider font-bold">
                         <th className="py-3 px-3">Booking ID</th>
                         <th className="py-3 px-3">Treatment</th>
                         <th className="py-3 px-3">Therapist</th>
@@ -349,30 +381,30 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                         <th className="py-3 px-3 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[var(--border-light)]">
+                    <tbody className="divide-y divide-stone-200 dark:border-white/10">
                       {filteredBookings.map((b) => (
-                        <tr key={b.id} className="hover:bg-black/2 dark:hover:bg-white/2 transition-colors">
-                          <td className="py-3.5 px-3 font-mono font-medium text-[11px] sm:text-xs text-[#b57377] whitespace-nowrap">
+                        <tr key={b.id} className="hover:bg-stone-50/75 dark:hover:bg-white/2 transition-colors">
+                          <td className="py-3.5 px-3 font-mono font-bold text-[11px] sm:text-xs text-[#b57377] whitespace-nowrap">
                             {b.bookingId}
                           </td>
-                          <td className="py-3.5 px-3 font-semibold text-[var(--text-primary)]">
+                          <td className="py-3.5 px-3 font-bold text-stone-900 dark:text-white">
                             {b.treatmentName}
-                            <span className="block text-[11px] font-normal text-[var(--text-muted)]">
+                            <span className="block text-[11px] font-normal text-stone-600 dark:text-stone-400">
                               R{b.price}
                             </span>
                           </td>
-                          <td className="py-3.5 px-3 text-[var(--text-muted)] whitespace-nowrap">
+                          <td className="py-3.5 px-3 text-stone-700 dark:text-stone-300 whitespace-nowrap">
                             <span className="flex items-center gap-1.5">
-                              <UserCheck className="w-3.5 h-3.5 text-[#d49a9e]" />
+                              <UserCheck className="w-3.5 h-3.5 text-[#b57377]" />
                               {b.therapistName}
                             </span>
                           </td>
-                          <td className="py-3.5 px-3 text-[var(--text-primary)] whitespace-nowrap">
+                          <td className="py-3.5 px-3 text-stone-900 dark:text-white whitespace-nowrap font-medium">
                             {b.date}
                           </td>
-                          <td className="py-3.5 px-3 text-[var(--text-primary)] whitespace-nowrap">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5 text-[#d49a9e]" />
+                          <td className="py-3.5 px-3 text-stone-900 dark:text-white whitespace-nowrap">
+                            <span className="flex items-center gap-1 font-medium">
+                              <Clock className="w-3.5 h-3.5 text-[#b57377]" />
                               {b.time}
                             </span>
                           </td>
@@ -383,14 +415,14 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                             {b.status === 'pending' || b.status === 'confirmed' ? (
                               <button
                                 onClick={() => handleCancelBooking(b.id)}
-                                className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1 text-xs text-red-600 dark:text-red-400 hover:text-red-700 font-semibold px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer"
                                 title="Cancel Appointment"
                               >
                                 <XCircle className="w-3.5 h-3.5" />
                                 <span>Cancel</span>
                               </button>
                             ) : (
-                              <span className="text-xs text-[var(--text-muted)] italic">
+                              <span className="text-xs text-stone-500 dark:text-stone-400 italic">
                                 Archived
                               </span>
                             )}
@@ -405,28 +437,28 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
           </div>
         )}
 
-        {/* TAB 2: PROFILE & PHOTO FROM INTERNAL STORAGE */}
+        {/* TAB 2: PROFILE & PHOTO FROM DEVICE STORAGE */}
         {activeTab === 'profile' && (
-          <div className="max-w-2xl mx-auto rounded-[24px] bg-[var(--bg-card)] border border-[var(--border-light)] shadow-[var(--shadow)] p-6 sm:p-8 animate-in fade-in duration-200">
-            <h2 className="font-serif-luxury text-2xl font-bold text-[var(--text-primary)] mb-2">
+          <div className="max-w-2xl mx-auto rounded-[24px] bg-[var(--bg-card)] border border-stone-200 dark:border-white/10 shadow-[var(--shadow)] p-6 sm:p-8 animate-in fade-in duration-200">
+            <h2 className="font-serif-luxury text-2xl font-bold text-stone-900 dark:text-white mb-2">
               Profile &amp; Contact Details
             </h2>
-            <p className="text-xs text-[var(--text-muted)] mb-6">
-              Add your photo to preview on guest testimonials, and set your phone number to automatically prefill and speed up your session bookings.
+            <p className="text-xs text-stone-600 dark:text-stone-400 mb-6">
+              Upload your photo so it appears on your verified reviews and testimonials.
             </p>
 
             {profileSaved && (
               <div className="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2">
                 <Check className="w-4 h-4" />
-                Profile updated successfully! Your photo and phone number are saved.
+                Profile updated successfully! Your photo and details are saved.
               </div>
             )}
 
             <form onSubmit={handleSaveProfile} className="space-y-5">
-              {/* Photo Select from Internal Storage */}
+              {/* Photo Select from Device Storage */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">
-                  Profile Photo (Select from Device / Internal Storage)
+                <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 mb-2">
+                  Profile Photo (Displays on your reviews &amp; testimonies)
                 </label>
                 
                 <div className="flex items-center gap-5">
@@ -435,18 +467,18 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                       <img
                         src={avatar}
                         alt="Profile preview"
-                        className="w-20 h-20 rounded-full object-cover border-2 border-[#e8b4b8] shadow-md"
+                        className="w-20 h-20 rounded-full object-cover border-2 border-[#b57377] dark:border-[#e8b4b8] shadow-md"
                       />
                     ) : (
-                      <div className="w-20 h-20 rounded-full bg-stone-100 dark:bg-white/10 flex items-center justify-center text-gray-400 border border-dashed border-gray-300 dark:border-white/20">
+                      <div className="w-20 h-20 rounded-full bg-stone-100 dark:bg-white/10 flex items-center justify-center text-stone-400 border border-dashed border-stone-300 dark:border-white/20">
                         <User className="w-8 h-8 opacity-40" />
                       </div>
                     )}
                   </div>
 
                   <div className="flex-1 space-y-1.5">
-                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-100 dark:bg-white/10 hover:bg-stone-200 dark:hover:bg-white/20 border border-gray-300 dark:border-white/20 text-xs font-bold text-[var(--text-primary)] cursor-pointer transition-colors">
-                      <Camera className="w-4 h-4 text-[#d49a9e]" />
+                    <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/20 border border-stone-300 dark:border-white/20 text-xs font-bold text-stone-900 dark:text-white cursor-pointer transition-colors shadow-sm">
+                      <Camera className="w-4 h-4 text-[#b57377] dark:text-[#d49a9e]" />
                       <span>Choose Photo from Device</span>
                       <input
                         type="file"
@@ -455,34 +487,70 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                         className="hidden"
                       />
                     </label>
-                    <p className="text-[11px] text-[var(--text-muted)]">
-                      JPEG, PNG, WebP supported. Photo will show on your testimonials and account badge.
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                      JPEG, PNG, WebP supported. This photo will be shown on any reviews or testimonies you post!
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Username Input */}
-              <Input
-                label="Client Username (Used on Bookings & Reviews)"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. AmandaKhumalo"
-                required
-              />
+              {/* First Name & Last Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 mb-1.5">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="e.g. Amanda"
+                    required
+                    className="w-full h-11 px-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8] focus:bg-white dark:focus:bg-[#1a1418] transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 mb-1.5">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="e.g. Khumalo"
+                    className="w-full h-11 px-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8] focus:bg-white dark:focus:bg-[#1a1418] transition-all"
+                  />
+                </div>
+              </div>
 
               {/* Phone Input */}
-              <div className="space-y-1">
-                <Input
-                  label="Contact Phone / WhatsApp Number *"
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 mb-1.5">
+                  Contact Phone / WhatsApp *
+                </label>
+                <input
+                  type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="e.g. +27 82 555 0192"
                   required
+                  className="w-full h-11 px-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8] focus:bg-white dark:focus:bg-[#1a1418] transition-all"
                 />
-                <p className="text-[11px] text-[var(--text-muted)]">
-                  * Saved to your profile so it automatically populates the booking form to save you time.
-                </p>
+              </div>
+
+              {/* Email Input */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 mb-1.5">
+                  Email Address <span className="font-normal text-stone-500 lowercase">(optional)</span>
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. amanda@example.com"
+                  className="w-full h-11 px-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8] focus:bg-white dark:focus:bg-[#1a1418] transition-all"
+                />
               </div>
 
               <Button
@@ -492,33 +560,33 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 icon={<Save className="w-4 h-4" />}
                 className="font-bold text-xs sm:text-sm mt-4 shadow-md"
               >
-                Save Profile &amp; Contact Information
+                Save Profile &amp; Contact Details
               </Button>
             </form>
           </div>
         )}
 
-        {/* TAB 3: POST TESTIMONIAL (Only posted by clients) */}
+        {/* TAB 3: POST TESTIMONIAL (Displays photo on website) */}
         {activeTab === 'review' && (
-          <div className="max-w-2xl mx-auto rounded-[24px] bg-[var(--bg-card)] border border-[var(--border-light)] shadow-[var(--shadow)] p-6 sm:p-8 animate-in fade-in duration-200">
-            <h2 className="font-serif-luxury text-2xl font-bold text-[var(--text-primary)] mb-2">
+          <div className="max-w-2xl mx-auto rounded-[24px] bg-[var(--bg-card)] border border-stone-200 dark:border-white/10 shadow-[var(--shadow)] p-6 sm:p-8 animate-in fade-in duration-200">
+            <h2 className="font-serif-luxury text-2xl font-bold text-stone-900 dark:text-white mb-2">
               Share Your Guest Experience
             </h2>
-            <p className="text-xs text-[var(--text-muted)] mb-6">
-              As a verified sanctuary guest, your authentic feedback helps others discover tranquility. Your review will immediately display in the Words of Serenity section!
+            <p className="text-xs text-stone-600 dark:text-stone-400 mb-6">
+              Your authentic feedback and uploaded photo will immediately appear in the Words of Serenity section on the public website!
             </p>
 
             {reviewSuccess && (
               <div className="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
                 <Check className="w-4 h-4" />
-                Thank you! Your verified testimonial has been published to the sanctuary home page.
+                Thank you! Your testimonial and photo have been published to the sanctuary home page.
               </div>
             )}
 
             <form onSubmit={handleSubmitReview} className="space-y-5">
               {/* Star Rating */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 mb-2">
                   Your Rating
                 </label>
                 <div className="flex items-center gap-2">
@@ -533,12 +601,12 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                         className={`w-7 h-7 ${
                           star <= reviewStars
                             ? 'fill-[#FFD700] text-[#FFD700]'
-                            : 'text-gray-300 dark:text-gray-600'
+                            : 'text-stone-300 dark:text-stone-600'
                         }`}
                       />
                     </button>
                   ))}
-                  <span className="text-sm font-bold text-[#FFD700] ml-2">
+                  <span className="text-sm font-bold text-[#b57377] dark:text-[#FFD700] ml-2">
                     {reviewStars}.0 / 5.0 Stars
                   </span>
                 </div>
@@ -546,17 +614,17 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
               {/* Treatment Experienced */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 mb-1.5">
                   Treatment Experienced *
                 </label>
                 <select
                   value={reviewTreatment}
                   onChange={(e) => setReviewTreatment(e.target.value)}
                   required
-                  className="w-full h-11 px-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e]"
+                  className="w-full h-11 px-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-xs text-stone-900 dark:text-white focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8] focus:bg-white dark:focus:bg-[#1a1418] transition-all"
                 >
                   {treatments.map((t) => (
-                    <option key={t.id} value={t.name} className="bg-[var(--bg-card)] text-[var(--text-primary)]">
+                    <option key={t.id} value={t.name} className="bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white">
                       {t.name} ({t.duration} min)
                     </option>
                   ))}
@@ -565,7 +633,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
               {/* Review Content */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 mb-1.5">
                   Your Review / Testimony *
                 </label>
                 <textarea
@@ -574,29 +642,29 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                   onChange={(e) => setReviewContent(e.target.value)}
                   placeholder="Describe how you felt during and after your session with our therapists..."
                   required
-                  className="w-full p-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e] resize-none"
+                  className="w-full p-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-stone-50 dark:bg-white/10 text-xs text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 focus:outline-none focus:border-[#b57377] dark:focus:border-[#e8b4b8] focus:bg-white dark:focus:bg-[#1a1418] transition-all resize-none"
                 />
               </div>
 
-              {/* Preview of author info */}
-              <div className="p-3.5 rounded-xl bg-stone-50 dark:bg-white/5 border border-[var(--border-light)] flex items-center gap-3">
-                {avatar || user?.avatar ? (
+              {/* Preview of author info with photo */}
+              <div className="p-4 rounded-xl bg-stone-50 dark:bg-white/5 border border-stone-200 dark:border-white/10 flex items-center gap-3.5">
+                {avatar || user?.profilePhoto || user?.avatar ? (
                   <img
-                    src={avatar || user?.avatar}
+                    src={avatar || user?.profilePhoto || user?.avatar}
                     alt="Author"
-                    className="w-10 h-10 rounded-full object-cover border border-[#e8b4b8]"
+                    className="w-12 h-12 rounded-full object-cover border-2 border-[#b57377] dark:border-[#e8b4b8] shadow-sm"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#e8b4b8] text-[#1a1418] font-bold flex items-center justify-center text-sm">
-                    {user ? user.firstName.charAt(0) : 'A'}
+                  <div className="w-12 h-12 rounded-full bg-[#b57377] text-white font-bold flex items-center justify-center text-sm shadow-sm">
+                    {user ? user.firstName.charAt(0) : 'C'}
                   </div>
                 )}
                 <div>
-                  <p className="text-xs font-bold text-[var(--text-primary)]">
-                    Publishing as: {user ? (user.username || `${user.firstName} ${user.lastName}`) : 'Amanda Khumalo'}
+                  <p className="text-xs font-bold text-stone-900 dark:text-white">
+                    Publishing as: {user ? `${user.firstName} ${user.lastName || ''}`.trim() || user.username : 'Guest'}
                   </p>
-                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                    ✓ Verified Guest Badge will be attached
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                    ✓ Your photo and Verified Guest Badge will appear on the homepage
                   </p>
                 </div>
               </div>
@@ -609,7 +677,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 icon={<MessageSquarePlus className="w-4 h-4" />}
                 className="font-bold text-xs sm:text-sm mt-2 shadow-md"
               >
-                {reviewSubmitting ? 'Submitting Testimony...' : 'Publish Guest Review'}
+                {reviewSubmitting ? 'Publishing Review...' : 'Publish Guest Review'}
               </Button>
             </form>
           </div>

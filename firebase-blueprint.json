@@ -1,0 +1,195 @@
+{
+  "entities": {
+    "user": {
+      "title": "User Profile",
+      "description": "User profile containing authentication and account info",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Numeric ID of user" },
+        "username": { "type": "string", "maxLength": 100, "description": "Unique username" },
+        "email": { "type": "string", "format": "email", "maxLength": 150, "description": "User email address" },
+        "firstName": { "type": "string", "maxLength": 100, "description": "First name" },
+        "lastName": { "type": "string", "maxLength": 100, "description": "Last name" },
+        "role": { "type": "string", "enum": ["client", "receptionist", "admin"], "description": "Access role" },
+        "phone": { "type": "string", "maxLength": 30, "description": "Contact telephone" },
+        "loyaltyPoints": { "type": "number", "description": "Earned rewards balance" },
+        "avatar": { "type": "string", "maxLength": 1000, "description": "Avatar image URL" }
+      },
+      "required": ["id", "username", "firstName", "role"]
+    },
+    "treatment": {
+      "title": "Treatment",
+      "description": "Spa wellness service or therapy offering",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Unique treatment numeric ID" },
+        "name": { "type": "string", "maxLength": 150, "description": "Name of the treatment" },
+        "price": { "type": "number", "description": "Price in ZAR" },
+        "duration": { "type": "number", "description": "Session length in minutes" },
+        "category": { "type": "string", "maxLength": 80, "description": "Category classification" },
+        "image": { "type": "string", "maxLength": 800000, "description": "Image URL or base64 storage string" },
+        "imageUrl": { "type": "string", "maxLength": 800000, "description": "Optional image URL or base64 storage string" },
+        "isMonthlySpecial": { "type": "boolean", "description": "Special promotion flag" },
+        "description": { "type": "string", "maxLength": 2000, "description": "Detailed description" },
+        "rating": { "type": "number", "description": "Average review rating" }
+      },
+      "required": ["id", "name", "price", "duration", "category"]
+    },
+    "booking": {
+      "title": "Booking",
+      "description": "Spa appointment reservation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Numeric booking ID" },
+        "bookingId": { "type": "string", "maxLength": 50, "description": "Formatted tracking code" },
+        "clientName": { "type": "string", "maxLength": 100, "description": "Client name" },
+        "clientId": { "type": "number", "description": "Client numeric ID or 0 for guest" },
+        "treatmentName": { "type": "string", "maxLength": 150, "description": "Name of booked treatment" },
+        "treatmentId": { "type": "number", "description": "ID of treatment" },
+        "therapistName": { "type": "string", "maxLength": 100, "description": "Assigned therapist name" },
+        "therapistId": { "type": "number", "description": "ID of therapist" },
+        "date": { "type": "string", "maxLength": 20, "description": "Booking date YYYY-MM-DD" },
+        "time": { "type": "string", "maxLength": 10, "description": "Booking start time HH:MM" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "completed", "cancelled"], "description": "Current status" },
+        "createdAt": { "type": "string", "maxLength": 50, "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "maxLength": 50, "description": "Update timestamp" },
+        "price": { "type": "number", "description": "Total price" },
+        "clientPhone": { "type": "string", "maxLength": 30, "description": "Phone number" },
+        "clientEmail": { "type": "string", "maxLength": 150, "description": "Email address" },
+        "notes": { "type": "string", "maxLength": 1000, "description": "Client notes or requests" }
+      },
+      "required": ["id", "bookingId", "clientName", "treatmentName", "date", "time", "status", "price"]
+    },
+    "therapist": {
+      "title": "Therapist",
+      "description": "Spa therapist profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Therapist ID" },
+        "name": { "type": "string", "maxLength": 100, "description": "Full name" },
+        "role": { "type": "string", "maxLength": 100, "description": "Specialist title" },
+        "bio": { "type": "string", "maxLength": 1500, "description": "Professional bio" },
+        "avatar": { "type": "string", "maxLength": 1000, "description": "Photo URL" },
+        "rating": { "type": "number", "description": "Therapist rating" }
+      },
+      "required": ["id", "name", "role", "bio", "avatar"]
+    },
+    "article": {
+      "title": "Article",
+      "description": "Spa wellness article or news item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Article ID" },
+        "title": { "type": "string", "maxLength": 200, "description": "Article title" },
+        "category": { "type": "string", "maxLength": 50, "description": "Category" },
+        "date": { "type": "string", "maxLength": 30, "description": "Publication date" },
+        "readTime": { "type": "string", "maxLength": 20, "description": "Estimated read time" },
+        "summary": { "type": "string", "maxLength": 1000, "description": "Summary blurb" },
+        "content": { "type": "string", "maxLength": 10000, "description": "Full body content" },
+        "author": { "type": "string", "maxLength": 100, "description": "Author name" },
+        "imageUrl": { "type": "string", "maxLength": 1000, "description": "Feature image URL" }
+      },
+      "required": ["id", "title", "category", "date", "content", "author"]
+    },
+    "galleryItem": {
+      "title": "Gallery Item",
+      "description": "Spa atmosphere gallery photo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Photo ID" },
+        "title": { "type": "string", "maxLength": 150, "description": "Image title" },
+        "category": { "type": "string", "maxLength": 60, "description": "Space category" },
+        "image": { "type": "string", "maxLength": 800000, "description": "Image URL or Base64 data from storage" },
+        "caption": { "type": "string", "maxLength": 500, "description": "Description caption" }
+      },
+      "required": ["id", "title", "category", "image"]
+    },
+    "testimonial": {
+      "title": "Testimonial",
+      "description": "Client review or testimonial",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Review ID" },
+        "name": { "type": "string", "maxLength": 100, "description": "Client name" },
+        "role": { "type": "string", "maxLength": 80, "description": "Role/Location" },
+        "avatar": { "type": "string", "maxLength": 1000, "description": "Client avatar URL" },
+        "stars": { "type": "number", "description": "Star rating 1-5" },
+        "content": { "type": "string", "maxLength": 2000, "description": "Review testimonial content" },
+        "treatment": { "type": "string", "maxLength": 150, "description": "Treatment reviewed" },
+        "date": { "type": "string", "maxLength": 30, "description": "Date submitted" }
+      },
+      "required": ["id", "name", "stars", "content", "treatment"]
+    },
+    "siteSettings": {
+      "title": "Site Settings",
+      "description": "Spa branding, contact, and operational configuration",
+      "type": "object",
+      "properties": {
+        "brandName": { "type": "string", "maxLength": 100, "description": "Brand primary name" },
+        "brandSuffix": { "type": "string", "maxLength": 100, "description": "Brand suffix" },
+        "tagline": { "type": "string", "maxLength": 200, "description": "Brand tagline" },
+        "phone": { "type": "string", "maxLength": 30, "description": "Telephone" },
+        "whatsappNumber": { "type": "string", "maxLength": 30, "description": "WhatsApp" },
+        "email": { "type": "string", "format": "email", "maxLength": 150, "description": "Contact email" },
+        "address": { "type": "string", "maxLength": 300, "description": "Physical address" },
+        "operatingHours": { "type": "string", "maxLength": 100, "description": "Working hours" },
+        "logoUrl": { "type": "string", "maxLength": 800000, "description": "Sanctuary logo image URL or base64 storage string" },
+        "welcomePhotoUrl": { "type": "string", "maxLength": 800000, "description": "Special Welcome Herbal tea visual" },
+        "welcomeTitle": { "type": "string", "maxLength": 300, "description": "Special Welcome banner headline" },
+        "instagram": { "type": "string", "maxLength": 200, "description": "Instagram link" },
+        "tiktok": { "type": "string", "maxLength": 200, "description": "TikTok link" }
+      },
+      "required": ["brandName", "phone", "email", "address"]
+    },
+    "category": {
+      "title": "Treatment Category",
+      "description": "Category for spa treatments",
+      "type": "object",
+      "properties": {
+        "slug": { "type": "string", "maxLength": 100 },
+        "label": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 300 },
+        "iconName": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["slug", "label"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "User profiles for clients and administrative staff"
+    },
+    "/categories/{categoryId}": {
+      "schema": "category",
+      "description": "Treatment categories managed dynamically by admin"
+    },
+    "/treatments/{treatmentId}": {
+      "schema": "treatment",
+      "description": "Spa treatment catalog and pricing"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "booking",
+      "description": "Client appointments and status tracking"
+    },
+    "/therapists/{therapistId}": {
+      "schema": "therapist",
+      "description": "Staff therapists profiles and specialties"
+    },
+    "/articles/{articleId}": {
+      "schema": "article",
+      "description": "Wellness blog articles and advice"
+    },
+    "/gallery/{galleryId}": {
+      "schema": "galleryItem",
+      "description": "Atmosphere and spa showcase photo gallery"
+    },
+    "/testimonials/{testimonialId}": {
+      "schema": "testimonial",
+      "description": "Client reviews and ratings"
+    },
+    "/settings/{settingsId}": {
+      "schema": "siteSettings",
+      "description": "Spa global configuration and contact details"
+    }
+  }
+}

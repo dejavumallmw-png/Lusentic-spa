@@ -1,22 +1,32 @@
-import React, { useState } from 'react';
-import { Sparkles, Check, Heart, Shield } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, Check, Heart, Shield, Edit3 } from 'lucide-react';
 import { Button } from '../atoms/Button';
+import { settingsService, DEFAULT_SETTINGS } from '../../services/settingsService';
+import { SiteSettings } from '../../types';
+import { useAuth } from '../../app/providers/AuthProvider';
 
 interface MonthlySpecialProps {
   onJoinMembership?: () => void;
+  onOpenAdminSettings?: () => void;
 }
 
-export const MonthlySpecial: React.FC<MonthlySpecialProps> = ({ onJoinMembership }) => {
+export const MonthlySpecial: React.FC<MonthlySpecialProps> = ({ onJoinMembership, onOpenAdminSettings }) => {
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
+
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(settingsService.getSettings());
   const [subscribed, setSubscribed] = useState(false);
 
-  const perks = [
-    'One 60-Minute Aromatherapy or Swedish Massage every month',
-    '20% Member Discount on all additional spa services & packages',
-    'Free Hot Stone or Foot Reflexology add-on with every visit',
-    'Priority weekend scheduling & VIP quiet suite access',
-    'Flexible rollovers: Unused credits never expire while active',
-    'Complimentary herbal tea bar & aromatherapy take-home kit',
-  ];
+  useEffect(() => {
+    const unsub = settingsService.subscribe((updated) => {
+      setSiteSettings(updated);
+    });
+    return () => unsub();
+  }, []);
+
+  const perks = siteSettings.membershipPerks && siteSettings.membershipPerks.length > 0
+    ? siteSettings.membershipPerks
+    : DEFAULT_SETTINGS.membershipPerks || [];
 
   const handleSubscribe = () => {
     setSubscribed(true);
@@ -24,12 +34,24 @@ export const MonthlySpecial: React.FC<MonthlySpecialProps> = ({ onJoinMembership
   };
 
   return (
-    <section id="about" className="py-16 sm:py-20 bg-gradient-to-b from-transparent via-[var(--bg-light)]/40 to-transparent">
+    <section id="about" className="py-16 sm:py-20 bg-gradient-to-b from-transparent via-[var(--bg-light)]/40 to-transparent relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Banner Card */}
         <div className="relative rounded-[32px] overflow-hidden bg-gradient-to-br from-[#1a1418] via-[#2a1e26] to-[#1a1418] text-white p-8 sm:p-12 lg:p-16 border border-[#e8b4b8]/20 shadow-2xl">
           
+          {/* Admin edit indicator */}
+          {isAdmin && onOpenAdminSettings && (
+            <button
+              onClick={onOpenAdminSettings}
+              className="absolute top-4 right-4 z-20 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/90 hover:bg-amber-500 text-white text-xs font-bold shadow-lg transition-all cursor-pointer"
+              title="Edit Save and Subscribe section in Admin Settings"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Edit Save &amp; Subscribe</span>
+            </button>
+          )}
+
           {/* Background Ambient Lights */}
           <div className="absolute top-0 right-10 w-96 h-96 bg-[#e8b4b8]/15 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-10 w-80 h-80 bg-[#d49a9e]/10 rounded-full blur-3xl pointer-events-none" />
@@ -40,24 +62,25 @@ export const MonthlySpecial: React.FC<MonthlySpecialProps> = ({ onJoinMembership
             <div className="lg:col-span-5 flex justify-center">
               <div className="w-full max-w-sm rounded-[28px] bg-white text-[#1a1418] p-8 shadow-2xl border-4 border-[#e8b4b8]/40 flex flex-col items-center text-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#b57377] mb-2">
-                  Subscribe &amp; Save
+                  {siteSettings.membershipBadge || 'Subscribe & Save'}
                 </span>
                 
-                <h3 className="font-serif-luxury text-2xl sm:text-3xl font-bold leading-tight mb-4">
-                  Join Our Monthly <br />
-                  Membership
+                <h3 className="font-serif-luxury text-2xl sm:text-3xl font-bold leading-tight mb-4 whitespace-pre-line">
+                  {siteSettings.membershipTitle || 'Join Our Monthly\nMembership'}
                 </h3>
 
                 {/* Price Pill */}
                 <div className="w-full py-2.5 px-6 rounded-full bg-[#f5edea] text-[#1a1418] mb-5 border border-[#e8b4b8]/50">
                   <span className="text-2xl sm:text-3xl font-extrabold font-serif-luxury text-[#b57377]">
-                    R499
+                    {siteSettings.membershipPrice || 'R499'}
                   </span>
-                  <span className="text-xs font-semibold text-gray-600"> / Month</span>
+                  <span className="text-xs font-semibold text-gray-600">
+                    {' '}{siteSettings.membershipPeriod || '/ Month'}
+                  </span>
                 </div>
 
                 <p className="text-xs text-gray-500 leading-relaxed mb-6">
-                  Invest in your continuous physical and mental wellness. Cancel anytime with zero lock-in contracts.
+                  {siteSettings.membershipDescription || 'Invest in your continuous physical and mental wellness. Cancel anytime with zero lock-in contracts.'}
                 </p>
 
                 {subscribed ? (
@@ -73,12 +96,12 @@ export const MonthlySpecial: React.FC<MonthlySpecialProps> = ({ onJoinMembership
                     onClick={handleSubscribe}
                     className="shadow-md hover:scale-[1.02]"
                   >
-                    Subscribe &amp; Save Now
+                    {siteSettings.membershipButtonText || 'Subscribe & Save Now'}
                   </Button>
                 )}
 
                 <p className="text-[10px] text-gray-400 mt-3 flex items-center gap-1 justify-center">
-                  <Shield className="w-3 h-3 text-[#28a745]" /> Secure auto-billing • Easy 1-click pause
+                  <Shield className="w-3 h-3 text-[#28a745]" /> {siteSettings.membershipGuarantee || 'Secure auto-billing • Easy 1-click pause'}
                 </p>
               </div>
             </div>
@@ -87,18 +110,20 @@ export const MonthlySpecial: React.FC<MonthlySpecialProps> = ({ onJoinMembership
             <div className="lg:col-span-7">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-[#FFD700] text-xs font-semibold uppercase tracking-wider mb-4">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Lusentic Wellness Club</span>
+                <span>{siteSettings.membershipClubTitle || 'Lusentic Wellness Club'}</span>
               </div>
 
               <h2 className="font-serif-luxury text-3xl sm:text-4xl lg:text-5xl font-normal leading-tight text-white mb-6">
-                Prioritize Your Health with <br />
-                <span className="italic text-[#e8b4b8]">Consistent Monthly Care</span>
+                {siteSettings.membershipHeading || (
+                  <>
+                    Prioritize Your Health with <br />
+                    <span className="italic text-[#e8b4b8]">Consistent Monthly Care</span>
+                  </>
+                )}
               </h2>
 
               <p className="text-sm sm:text-base text-white/80 leading-relaxed mb-8 max-w-xl">
-                True rejuvenation isn't an occasional luxury—it's a sustained discipline. 
-                Our membership guarantees you dedicated time every month to decompress, reset muscles, 
-                and receive therapist care at our lowest exclusive rates.
+                {siteSettings.membershipSubtext || "True rejuvenation isn't an occasional luxury—it's a sustained discipline. Our membership guarantees you dedicated time every month to decompress, reset muscles, and receive therapist care at our lowest exclusive rates."}
               </p>
 
               {/* Perks Grid */}
@@ -117,10 +142,10 @@ export const MonthlySpecial: React.FC<MonthlySpecialProps> = ({ onJoinMembership
 
               <div className="mt-8 pt-6 border-t border-white/10 flex items-center gap-4 text-xs text-white/60">
                 <span className="flex items-center gap-1.5 text-white/90 font-medium">
-                  <Heart className="w-4 h-4 text-[#e8b4b8] fill-[#e8b4b8]" /> 420+ Active Club Members
+                  <Heart className="w-4 h-4 text-[#e8b4b8] fill-[#e8b4b8]" /> {siteSettings.membershipMembersCount || '420+ Active Club Members'}
                 </span>
                 <span>•</span>
-                <span>Exclusive invitation to quarterly seasonal retreats</span>
+                <span>{siteSettings.membershipFooterNote || 'Exclusive invitation to quarterly seasonal retreats'}</span>
               </div>
             </div>
 

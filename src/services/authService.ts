@@ -1,35 +1,57 @@
 import { User, UserRole } from '../types';
-import { INITIAL_USERS } from '../data/initialData';
+import { signInWithGoogle, logoutFirebase, db } from './firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
-const USER_KEY = 'lusentic_spa_user';
-const CLIENTS_KEY = 'lusentic_spa_clients';
+const USER_KEY = 'lusentic_spa_user_v2';
+const CLIENTS_KEY = 'lusentic_spa_clients_v2';
+const ADMIN_PROFILE_KEY = 'lusentic_spa_admin_profile_v1';
+const STAFF_LIST_KEY = 'lusentic_spa_staff_list_v2';
 
-const INITIAL_CLIENTS: User[] = [
-  {
-    id: 101,
-    username: 'amanda_khumalo',
-    firstName: 'Amanda',
-    lastName: 'Khumalo',
-    role: 'client',
-    phone: '+27 82 555 0192',
-    pin: '1234',
-    email: 'amanda.guest@lusenticspa.com',
-    loyaltyPoints: 120,
-    profilePhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-  },
-];
+export const DEFAULT_ADMIN_CREDENTIALS = {
+  username: 'admin@lusentic.com',
+  password: 'Lusentic1112=',
+  defaultFirstName: 'Prince',
+  defaultLastName: 'Bonya',
+};
+
+function getStoredAdminProfile(): User {
+  try {
+    const raw = localStorage.getItem(ADMIN_PROFILE_KEY);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch {}
+
+  const defaultAdmin: User = {
+    id: 1,
+    username: DEFAULT_ADMIN_CREDENTIALS.username,
+    email: DEFAULT_ADMIN_CREDENTIALS.username,
+    firstName: DEFAULT_ADMIN_CREDENTIALS.defaultFirstName,
+    lastName: DEFAULT_ADMIN_CREDENTIALS.defaultLastName,
+    role: 'admin',
+    phone: '+27 11 888 9000',
+    loyaltyPoints: 0,
+    profilePhoto: '',
+    avatar: '',
+  };
+  localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(defaultAdmin));
+  return defaultAdmin;
+}
+
+function saveAdminProfile(admin: User): void {
+  localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(admin));
+}
 
 function getStoredClients(): User[] {
   try {
     const raw = localStorage.getItem(CLIENTS_KEY);
     if (!raw) {
-      localStorage.setItem(CLIENTS_KEY, JSON.stringify(INITIAL_CLIENTS));
-      return INITIAL_CLIENTS;
+      localStorage.setItem(CLIENTS_KEY, JSON.stringify([]));
+      return [];
     }
     return JSON.parse(raw);
   } catch {
-    return INITIAL_CLIENTS;
+    return [];
   }
 }
 
@@ -116,7 +138,6 @@ export const authService = {
     const lastName = nameParts.slice(1).join(' ') || '';
 
     if (existing) {
-      // Update PIN and info for this existing client
       existing.pin = data.pin.trim();
       existing.firstName = firstName;
       existing.lastName = lastName;
@@ -140,7 +161,7 @@ export const authService = {
       phone: data.phone.trim(),
       pin: data.pin.trim(),
       email: data.email?.trim() || undefined,
-      loyaltyPoints: 50, // Welcome loyalty points bonus
+      loyaltyPoints: 50,
       profilePhoto: data.photo || '',
       avatar: data.photo || '',
     };
@@ -152,42 +173,58 @@ export const authService = {
   },
 
   /**
-   * Legacy or Staff / Admin direct login via URL links (/admin, /staff)
+   * Admin and Staff Login via URL Link (/admin, #admin, etc.)
+   * Authenticates against:
+   * 1. Default Admin: admin@lusentic.com / Lusentic1112= (Dynamic Admin: Prince Bonya)
+   * 2. Any additional staff / admin accounts added by Prince Bonya
    */
-  async login(emailOrUsername: string, role: UserRole = 'client'): Promise<User> {
-    const existing = INITIAL_USERS.find(
-      (u) =>
-        u.email?.toLowerCase() === emailOrUsername.toLowerCase() ||
-        u.username.toLowerCase() === emailOrUsername.toLowerCase()
-    );
+  async loginStaff(usernameOrEmail: string, passwordAttempt: string): Promise<User> {
+    const cleanUser = usernameOrEmail.trim().toLowerCase();
+    const cleanPass = passwordAttempt.trim();
 
-    if (existing) {
-      localStorage.setItem(USER_KEY, JSON.stringify(existing));
-      return existing;
+    // 1. Check Default Super Admin
+    if (
+      (cleanUser === DEFAULT_ADMIN_CREDENTIALS.username.toLowerCase() ||
+        cleanUser === 'admin') &&
+      cleanPass === DEFAULT_ADMIN_CREDENTIALS.password
+    ) {
+      const admin = getStoredAdminProfile();
+      localStorage.setItem(USER_KEY, JSON.stringify(admin));
+      return admin;
     }
 
-    const newUser: User = {
-      id: Math.floor(Math.random() * 9000 + 1000),
-      username: emailOrUsername.split('@')[0],
-      email: emailOrUsername.includes('@') ? emailOrUsername : `${emailOrUsername}@lusenticspa.com`,
-      firstName: emailOrUsername.split('@')[0],
-      lastName: 'Member',
-      role,
-      loyaltyPoints: role === 'client' ? 50 : 0,
-      profilePhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    };
+    // 2. Check Additional Staff / Admin accounts added in the system
+    const staffList = await this.getAllStaff();
+    const matchedStaff = staffList.find(
+      (s) =>
+        (s.username.toLowerCase() === cleanUser ||
+          (s.email && s.email.toLowerCase() === cleanUser)) &&
+        s.password === cleanPass
+    );
 
-    localStorage.setItem(USER_KEY, JSON.stringify(newUser));
-    return newUser;
+    if (matchedStaff) {
+      localStorage.setItem(USER_KEY, JSON.stringify(matchedStaff));
+      return matchedStaff;
+    }
+
+    throw new Error('Invalid credentials. Please verify your username and password.');
   },
 
-  async register(data: { firstName: string; lastName: string; email: string; phone?: string }): Promise<User> {
-    return this.registerClient({
-      name: `${data.firstName} ${data.lastName}`,
-      phone: data.phone || '+27 82 555 0192',
-      pin: '1234',
-      email: data.email,
-    });
+  getAdminProfile(): User {
+    return getStoredAdminProfile();
+  },
+
+  async updateAdminProfile(updates: Partial<User>): Promise<User> {
+    const current = getStoredAdminProfile();
+    const updated: User = { ...current, ...updates };
+    saveAdminProfile(updated);
+
+    // If currently logged in as admin, update current session as well
+    const currentUser = this.getCurrentUser();
+    if (currentUser && currentUser.role === 'admin') {
+      localStorage.setItem(USER_KEY, JSON.stringify(updated));
+    }
+    return updated;
   },
 
   async updateProfile(updates: Partial<User>): Promise<User> {
@@ -197,25 +234,33 @@ export const authService = {
     const updated = { ...current, ...updates };
     localStorage.setItem(USER_KEY, JSON.stringify(updated));
 
-    // Also update in registered clients list
-    const clients = getStoredClients();
-    const idx = clients.findIndex((c) => c.id === current.id || (current.phone && c.phone === current.phone));
-    if (idx !== -1) {
-      clients[idx] = { ...clients[idx], ...updates };
-      saveClients(clients);
+    if (current.role === 'admin') {
+      saveAdminProfile(updated);
+    } else {
+      const clients = getStoredClients();
+      const idx = clients.findIndex((c) => c.id === current.id || (current.phone && c.phone === current.phone));
+      if (idx !== -1) {
+        clients[idx] = { ...clients[idx], ...updates };
+        saveClients(clients);
+      }
     }
 
     return updated;
   },
 
   async getAllStaff(): Promise<User[]> {
-    const raw = localStorage.getItem('lusentic_spa_staff_list');
-    if (!raw) {
-      const initialStaff = INITIAL_USERS.filter((u) => u.role === 'admin' || u.role === 'receptionist');
-      localStorage.setItem('lusentic_spa_staff_list', JSON.stringify(initialStaff));
-      return initialStaff;
+    try {
+      const raw = localStorage.getItem(STAFF_LIST_KEY);
+      if (!raw) {
+        const defaultAdmin = getStoredAdminProfile();
+        const initial = [defaultAdmin];
+        localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(initial));
+        return initial;
+      }
+      return JSON.parse(raw);
+    } catch {
+      return [getStoredAdminProfile()];
     }
-    return JSON.parse(raw);
   },
 
   async addStaff(data: {
@@ -225,6 +270,7 @@ export const authService = {
     role: 'admin' | 'receptionist';
     phone?: string;
     username?: string;
+    password?: string;
     avatar?: string;
   }): Promise<User> {
     const list = await this.getAllStaff();
@@ -236,31 +282,115 @@ export const authService = {
       lastName: data.lastName,
       role: data.role,
       phone: data.phone,
+      password: data.password || 'Lusentic1112=',
       loyaltyPoints: 0,
-      profilePhoto: data.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
-      avatar: data.avatar,
+      profilePhoto: data.avatar || '',
+      avatar: data.avatar || '',
     };
     const updated = [...list, newStaff];
-    localStorage.setItem('lusentic_spa_staff_list', JSON.stringify(updated));
+    localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(updated));
     return newStaff;
   },
 
+  async removeStaff(id: number): Promise<boolean> {
+    const list = await this.getAllStaff();
+    // Prevent removing the default super admin
+    const filtered = list.filter((s) => s.id !== id || s.username === DEFAULT_ADMIN_CREDENTIALS.username);
+    localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(filtered));
+    return true;
+  },
+
+  async updateStaff(id: number, updates: Partial<User>): Promise<User | null> {
+    const list = await this.getAllStaff();
+    const idx = list.findIndex((s) => s.id === id);
+    if (idx === -1) return null;
+    list[idx] = { ...list[idx], ...updates };
+    localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(list));
+
+    if (list[idx].username === DEFAULT_ADMIN_CREDENTIALS.username) {
+      saveAdminProfile(list[idx]);
+    }
+    return list[idx];
+  },
+
   async switchRole(role: UserRole): Promise<User> {
-    const targetUser = INITIAL_USERS.find((u) => u.role === role) || {
+    if (role === 'admin') {
+      const admin = getStoredAdminProfile();
+      localStorage.setItem(USER_KEY, JSON.stringify(admin));
+      return admin;
+    }
+    const staffList = await this.getAllStaff();
+    const target = staffList.find((s) => s.role === role);
+    if (target) {
+      localStorage.setItem(USER_KEY, JSON.stringify(target));
+      return target;
+    }
+    const newUser: User = {
       id: 999,
       username: `${role}_user`,
       email: `${role}@lusenticspa.com`,
       firstName: role.charAt(0).toUpperCase() + role.slice(1),
       lastName: 'Staff',
       role,
-      loyaltyPoints: role === 'client' ? 120 : 0,
+      loyaltyPoints: 0,
+    };
+    localStorage.setItem(USER_KEY, JSON.stringify(newUser));
+    return newUser;
+  },
+
+  async login(emailOrUser: string, role: UserRole = 'client'): Promise<User> {
+    if (role === 'admin' || role === 'receptionist') {
+      return this.switchRole(role);
+    }
+    return this.loginClient(emailOrUser, '1234').catch(() => this.switchRole(role));
+  },
+
+  async loginWithGoogle(): Promise<User> {
+    const firebaseUser = await signInWithGoogle();
+    if (!firebaseUser) throw new Error('Google sign in was not completed.');
+
+    const email = (firebaseUser.email || '').toLowerCase();
+    const isAdminEmail =
+      email === 'dejavumallmw@gmail.com' || email === DEFAULT_ADMIN_CREDENTIALS.username;
+
+    const nameParts = (firebaseUser.displayName || 'Google User').trim().split(' ');
+    const firstName = nameParts[0] || 'Client';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    const user: User = {
+      id: Math.floor(Math.random() * 90000 + 10000),
+      username: email || firebaseUser.uid,
+      email,
+      firstName,
+      lastName,
+      role: isAdminEmail ? 'admin' : 'client',
+      loyaltyPoints: 50,
+      avatar: firebaseUser.photoURL || '',
+      profilePhoto: firebaseUser.photoURL || '',
     };
 
-    localStorage.setItem(USER_KEY, JSON.stringify(targetUser));
-    return targetUser;
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+    try {
+      await setDoc(doc(db, 'users', firebaseUser.uid), user, { merge: true });
+    } catch (e) {
+      console.warn('Profile synced locally, cloud sync pending:', e);
+    }
+
+    return user;
+  },
+
+  async register(data: { firstName: string; lastName: string; email: string; phone?: string }): Promise<User> {
+    return this.registerClient({
+      name: `${data.firstName} ${data.lastName}`,
+      phone: data.phone || '+27 82 555 0192',
+      pin: '1234',
+      email: data.email,
+    });
   },
 
   async logout(): Promise<void> {
     localStorage.removeItem(USER_KEY);
+    await logoutFirebase();
   },
 };

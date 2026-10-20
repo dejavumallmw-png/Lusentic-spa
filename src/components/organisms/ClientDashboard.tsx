@@ -646,27 +646,40 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 />
               </div>
 
-              {/* Preview of author info with photo */}
-              <div className="p-4 rounded-xl bg-stone-50 dark:bg-white/5 border border-stone-200 dark:border-white/10 flex items-center gap-3.5">
-                {avatar || user?.profilePhoto || user?.avatar ? (
-                  <img
-                    src={avatar || user?.profilePhoto || user?.avatar}
-                    alt="Author"
-                    className="w-12 h-12 rounded-full object-cover border-2 border-[#b57377] dark:border-[#e8b4b8] shadow-sm"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-[#b57377] text-white font-bold flex items-center justify-center text-sm shadow-sm">
-                    {user ? user.firstName.charAt(0) : 'C'}
+              {/* Preview of author info with photo and instant upload */}
+              <div className="p-4 rounded-xl bg-stone-50 dark:bg-white/5 border border-stone-200 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  {avatar || user?.profilePhoto || user?.avatar ? (
+                    <img
+                      src={avatar || user?.profilePhoto || user?.avatar}
+                      alt="Author"
+                      className="w-14 h-14 rounded-full object-cover border-2 border-[#b57377] dark:border-[#e8b4b8] shadow-sm shrink-0"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#d49a9e] to-[#e8b4b8] text-[#1a1418] font-bold flex items-center justify-center text-lg shadow-sm shrink-0">
+                      {user ? user.firstName.charAt(0) : 'G'}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs font-bold text-stone-900 dark:text-white">
+                      Publishing as: {user ? `${user.firstName} ${user.lastName || ''}`.trim() || user.username : 'Guest'}
+                    </p>
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                      ✓ Your face and Verified Guest Badge will appear on the homepage review card
+                    </p>
                   </div>
-                )}
-                <div>
-                  <p className="text-xs font-bold text-stone-900 dark:text-white">
-                    Publishing as: {user ? `${user.firstName} ${user.lastName || ''}`.trim() || user.username : 'Guest'}
-                  </p>
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                    ✓ Your photo and Verified Guest Badge will appear on the homepage
-                  </p>
                 </div>
+
+                <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-white/10 hover:bg-stone-100 dark:hover:bg-white/20 border border-stone-300 dark:border-white/20 text-xs font-bold text-stone-900 dark:text-white cursor-pointer transition-colors shadow-xs shrink-0">
+                  <Camera className="w-4 h-4 text-[#b57377] dark:text-[#d49a9e]" />
+                  <span>{avatar || user?.profilePhoto ? 'Change Photo' : 'Add Your Face Photo'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoSelect}
+                    className="hidden"
+                  />
+                </label>
               </div>
 
               <Button

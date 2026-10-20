@@ -19,8 +19,8 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
 
   const settings = settingsService.getSettings();
   const brandName = `${settings.brandName || 'Lusentic'} ${settings.brandSuffix || 'Spa'}`.trim();
-  const rawPhone = settings.socials?.whatsapp || settings.phone || '27825550192';
-  const cleanPhone = rawPhone.replace(/\D/g, '') || '27825550192';
+  const rawPhone = settings.whatsappNumber || settings.socials?.whatsapp || settings.phone || '27838154513';
+  const cleanPhone = rawPhone.replace(/\D/g, '') || '27838154513';
 
   const whatsappMessage = encodeURIComponent(
     `Hello ${brandName}! I just booked an appointment.\nBooking ID: ${booking.bookingId}\nTreatment: ${booking.treatmentName}\nDate: ${booking.date} at ${booking.time}\nName: ${booking.clientName}`

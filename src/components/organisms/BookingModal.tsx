@@ -116,7 +116,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     '18:30',
   ];
 
-  const currentTreatment = treatments.find((t) => t.id === selectedTreatmentId) || treatments[0];
+  const fallbackTreatment: Treatment = {
+    id: 0,
+    name: 'Custom Holistic Spa Consultation',
+    price: 750,
+    duration: 60,
+    category: 'holistic',
+    isMonthlySpecial: false,
+    description: 'A bespoke wellness consultation and therapeutic session tailored directly to your tension and relaxation needs.',
+  };
+
+  const currentTreatment = treatments.find((t) => t.id === selectedTreatmentId) || treatments[0] || fallbackTreatment;
   const currentTherapist = therapists.find((th) => th.id === selectedTherapistId) || therapists[0];
 
   // Helper to check if a specific time slot is already booked for this therapist and date
@@ -262,46 +272,65 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
 
               <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-                {treatments.map((treatment) => {
-                  const isSelected = selectedTreatmentId === treatment.id;
-                  return (
-                    <div
-                      key={treatment.id}
-                      onClick={() => setSelectedTreatmentId(treatment.id)}
-                      className={`p-3.5 rounded-[20px] border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                        isSelected
-                          ? 'border-[#b57377] dark:border-[#e8b4b8] bg-[#fcebee] dark:bg-[#e8b4b8]/15 shadow-sm'
-                          : 'border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 hover:border-[#b57377]/50 hover:bg-stone-100 dark:hover:bg-white/10'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
-                            isSelected
-                              ? 'border-[#b57377] bg-[#b57377] text-white dark:border-[#e8b4b8] dark:bg-[#e8b4b8] dark:text-[#1e181c]'
-                              : 'border-stone-400 dark:border-white/40'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-stone-900 dark:text-white leading-tight">
-                            {treatment.name}
-                          </h4>
-                          <span className="text-xs text-stone-600 dark:text-white/50 flex items-center gap-1 mt-0.5">
-                            <Clock className="w-3 h-3 text-[#b57377] dark:text-[#e8b4b8]" />
-                            <span>{treatment.duration} min</span>
-                            <span>•</span>
-                            <span className="capitalize">{treatment.category}</span>
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-sm font-bold text-[#b57377] dark:text-[#e8b4b8] shrink-0">
-                        R{treatment.price}
+                {treatments.length === 0 ? (
+                  <div
+                    onClick={() => setSelectedTreatmentId(0)}
+                    className="p-4 rounded-[20px] border-2 border-[#b57377] dark:border-[#e8b4b8] bg-[#fcebee] dark:bg-[#e8b4b8]/15 shadow-sm cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="text-sm font-bold text-stone-900 dark:text-white">
+                        Custom Holistic Spa Consultation
+                      </h4>
+                      <span className="text-sm font-bold text-[#b57377] dark:text-[#e8b4b8]">
+                        R750
                       </span>
                     </div>
-                  );
-                })}
+                    <p className="text-xs text-stone-600 dark:text-white/70">
+                      Bespoke wellness session tailored directly to your tension and relaxation needs upon arrival.
+                    </p>
+                  </div>
+                ) : (
+                  treatments.map((treatment) => {
+                    const isSelected = selectedTreatmentId === treatment.id;
+                    return (
+                      <div
+                        key={treatment.id}
+                        onClick={() => setSelectedTreatmentId(treatment.id)}
+                        className={`p-3.5 rounded-[20px] border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'border-[#b57377] dark:border-[#e8b4b8] bg-[#fcebee] dark:bg-[#e8b4b8]/15 shadow-sm'
+                            : 'border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 hover:border-[#b57377]/50 hover:bg-stone-100 dark:hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                              isSelected
+                                ? 'border-[#b57377] bg-[#b57377] text-white dark:border-[#e8b4b8] dark:bg-[#e8b4b8] dark:text-[#1e181c]'
+                                : 'border-stone-400 dark:border-white/40'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-stone-900 dark:text-white leading-tight">
+                              {treatment.name}
+                            </h4>
+                            <span className="text-xs text-stone-600 dark:text-white/50 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3 text-[#b57377] dark:text-[#e8b4b8]" />
+                              <span>{treatment.duration} min</span>
+                              <span>•</span>
+                              <span className="capitalize">{treatment.category}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-sm font-bold text-[#b57377] dark:text-[#e8b4b8] shrink-0">
+                          R{treatment.price}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           )}

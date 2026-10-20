@@ -172,7 +172,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border border-white/20 hover:border-[#e8b4b8] bg-white/10 text-white transition-colors cursor-pointer"
             >
               <UserIcon className="w-3.5 h-3.5 text-[#e8b4b8]" />
-              <span>{user && user.role === 'client' ? user.firstName : 'Client Login'}</span>
+              <span>{user && user.role === 'client' ? user.firstName : 'Sign In'}</span>
               {user && user.role === 'client' && <ChevronDown className="w-3 h-3 text-white/70" />}
             </button>
 
@@ -291,7 +291,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#b57377] to-[#d49a9e] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md"
                 >
                   <LogIn className="w-4 h-4" />
-                  <span>Client Login / Register</span>
+                  <span>Sign In / Register</span>
                 </button>
               )}
             </div>

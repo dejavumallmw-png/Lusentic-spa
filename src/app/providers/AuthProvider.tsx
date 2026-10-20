@@ -8,6 +8,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   login: (emailOrUser: string, role?: UserRole) => Promise<User>;
   loginClient: (phone: string, pin: string) => Promise<User>;
+  loginStaff: (usernameOrEmail: string, passwordAttempt: string) => Promise<User>;
   registerClient: (data: { name: string; phone: string; pin: string; email?: string; photo?: string }) => Promise<User>;
   register: (data: { firstName: string; lastName: string; email: string; phone?: string }) => Promise<User>;
   switchRole: (role: UserRole) => Promise<User>;
@@ -27,6 +28,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginClient = async (phone: string, pin: string) => {
     const logged = await authService.loginClient(phone, pin);
+    setUser(logged);
+    return logged;
+  };
+
+  const loginStaff = async (usernameOrEmail: string, passwordAttempt: string) => {
+    const logged = await authService.loginStaff(usernameOrEmail, passwordAttempt);
     setUser(logged);
     return logged;
   };
@@ -75,6 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user,
         login,
         loginClient,
+        loginStaff,
         registerClient,
         register,
         switchRole,

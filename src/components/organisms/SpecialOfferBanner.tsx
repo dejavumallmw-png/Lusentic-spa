@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Star, Sparkles, HeartHandshake, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Sparkles, HeartHandshake, ShieldCheck, Award } from 'lucide-react';
 import { Button } from '../atoms/Button';
 
 interface SpecialOfferBannerProps {
@@ -17,7 +17,7 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           
-          {/* Left Block: Dark Luxury "Self Care Isn't Selfish" 20% OFF card (Photo 2) */}
+          {/* Left Block: Dark Luxury "Self Care Isn't Selfish" 20% OFF card */}
           <div className="lg:col-span-5 relative rounded-[28px] overflow-hidden bg-gradient-to-br from-[#1a1418] via-[#241a20] to-[#120e10] text-white p-7 sm:p-9 flex flex-col justify-between shadow-xl border border-white/10 group">
             {/* Ambient gold glow */}
             <div className="absolute top-0 right-0 w-48 h-48 bg-[#e8b4b8]/15 rounded-full blur-2xl pointer-events-none" />
@@ -69,24 +69,24 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
             </div>
           </div>
 
-          {/* Center Block: Why Choose Us (Photo 2) */}
-          <div className="lg:col-span-4 rounded-[28px] bg-[var(--bg-card)] p-7 sm:p-9 border border-[var(--border-light)] shadow-[var(--shadow)] flex flex-col justify-between">
+          {/* Right Block: Why Choose Us (Expanded 7 columns with balanced features) */}
+          <div className="lg:col-span-7 rounded-[28px] bg-[var(--bg-card)] p-7 sm:p-9 border border-[var(--border-light)] shadow-[var(--shadow)] flex flex-col justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-[#d49a9e] mb-2">
-                Why Choose Us
+                Why Book With Us
               </p>
-              <h3 className="font-serif-luxury text-2xl sm:text-3xl font-normal text-[var(--text-primary)] mb-6">
-                A Haven Designed For True Restoration
+              <h3 className="font-serif-luxury text-2xl sm:text-3xl md:text-4xl font-normal text-[var(--text-primary)] mb-6">
+                A Sanctuary Crafted For Deep Restoration
               </h3>
 
-              <div className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
                 <div className="flex items-start gap-3.5">
                   <div className="w-10 h-10 rounded-full bg-[#f5edea] dark:bg-[#2d2228] text-[#d49a9e] flex items-center justify-center shrink-0 mt-0.5">
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-black dark:text-white">Luxury &amp; Comfort</h4>
-                    <p className="text-xs text-black dark:text-stone-300 font-bold dark:font-medium leading-relaxed">
+                    <p className="text-xs text-black dark:text-stone-300 font-bold dark:font-medium leading-relaxed mt-1">
                       Experience 5-star comfort, heated organic treatment tables, and soundproof private suites.
                     </p>
                   </div>
@@ -98,8 +98,8 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-black dark:text-white">Personalized Care</h4>
-                    <p className="text-xs text-black dark:text-stone-300 font-bold dark:font-medium leading-relaxed">
-                      Every pressure, essential oil blend, and temperature is adjusted specifically for you.
+                    <p className="text-xs text-black dark:text-stone-300 font-bold dark:font-medium leading-relaxed mt-1">
+                      Every pressure, essential oil blend, and room temperature is customized specifically for you.
                     </p>
                   </div>
                 </div>
@@ -110,47 +110,32 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-black dark:text-white">Certified Natural</h4>
-                    <p className="text-xs text-black dark:text-stone-300 font-bold dark:font-medium leading-relaxed">
+                    <p className="text-xs text-black dark:text-stone-300 font-bold dark:font-medium leading-relaxed mt-1">
                       Cruelty-free, vegan organic formulas free of artificial preservatives, parabens, and perfumes.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-full bg-[#f5edea] dark:bg-[#2d2228] text-[#d49a9e] flex items-center justify-center shrink-0 mt-0.5">
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-black dark:text-white">Master Practitioners</h4>
+                    <p className="text-xs text-black dark:text-stone-300 font-bold dark:font-medium leading-relaxed mt-1">
+                      Internationally certified holistic therapists dedicated to physical vitality and peaceful mind.
                     </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="pt-6 border-t border-[var(--border-light)] mt-6 flex items-center justify-between text-xs text-stone-600 dark:text-stone-300 font-medium">
-              <span>Open 7 Days a Week</span>
-              <span className="font-semibold text-[#28a745]">● Now Accepting Bookings</span>
-            </div>
-          </div>
-
-          {/* Right Block: Featured Guest Review Card (Photo 2) */}
-          <div className="lg:col-span-3 rounded-[28px] bg-white dark:bg-[#241a20] p-7 sm:p-8 border-2 border-[#e8b4b8] shadow-lg flex flex-col justify-between">
-            <div>
-              <span className="text-4xl text-[#d49a9e] font-serif leading-none block mb-2">“</span>
-              <p className="text-sm sm:text-base text-stone-900 dark:text-stone-100 font-medium italic leading-relaxed mb-6">
-                The best spa experience I've ever had. The therapists are remarkably intuitive, the ambience is peaceful, and I left feeling completely recharged.
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-1 text-[#FFD700] mb-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-[#FFD700]" />
-                ))}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <img
-                  src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80"
-                  alt="Priya S."
-                  className="w-11 h-11 rounded-full object-cover border-2 border-[#e8b4b8]"
-                />
-                <div>
-                  <h5 className="text-sm font-bold text-stone-900 dark:text-white">Priya S.</h5>
-                  <p className="text-xs text-stone-600 dark:text-stone-300 font-medium">Verified Regular Guest</p>
-                </div>
-              </div>
+            <div className="pt-6 border-t border-[var(--border-light)] mt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-stone-600 dark:text-stone-300 font-medium">
+              <span>Open 7 Days a Week • Monday to Sunday</span>
+              <span className="font-semibold text-[#28a745] flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#28a745] animate-pulse" />
+                Now Accepting Dynamic Bookings
+              </span>
             </div>
           </div>
 
@@ -159,3 +144,4 @@ export const SpecialOfferBanner: React.FC<SpecialOfferBannerProps> = ({ onBookNo
     </section>
   );
 };
+

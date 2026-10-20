@@ -31,6 +31,7 @@ import {
   FolderPlus,
   UserPlus,
   Star,
+  RotateCcw,
   X
 } from 'lucide-react';
 import { Booking, BookingStatus, Treatment, Therapist, UserRole, UserProfile, GalleryItem, Testimonial } from '../../types';
@@ -39,7 +40,7 @@ import { treatmentService } from '../../services/treatmentService';
 import { therapistService } from '../../services/therapistService';
 import { categoryService } from '../../services/categoryService';
 import { articleService, Article } from '../../services/articleService';
-import { settingsService } from '../../services/settingsService';
+import { settingsService, getCleanWhatsAppUrl } from '../../services/settingsService';
 import { authService } from '../../services/authService';
 import { galleryService } from '../../services/galleryService';
 import { testimonialService } from '../../services/testimonialService';
@@ -48,21 +49,17 @@ import { Badge } from '../atoms/Badge';
 import { Button } from '../atoms/Button';
 import { Input } from '../atoms/Input';
 import { StatCard } from '../molecules/StatCard';
+import { GalleryPhotoModal } from './GalleryPhotoModal';
+import { TestimonialModal } from './TestimonialModal';
+import { WelcomePhotoModal } from './WelcomePhotoModal';
 
 interface AdminDashboardProps {
   onBackToHome: () => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) => {
-  const { user, role, switchRole } = useAuth();
+  const { user, role, switchRole, logout } = useAuth();
   const isAdmin = role === 'admin';
-
-  // Automatically elevate from client to Admin role when viewing Admin Dashboard
-  useEffect(() => {
-    if (role === 'client') {
-      switchRole('admin');
-    }
-  }, [role, switchRole]);
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -77,6 +74,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   const [loading, setLoading] = useState(true);
   const [searchFilter, setSearchFilter] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // DYNAMIC ADMIN PROFILE (Prince Bonya by default)
+  const [adminFirstName, setAdminFirstName] = useState('Prince');
+  const [adminLastName, setAdminLastName] = useState('Bonya');
 
   // CATEGORIES SECTION: Add Category Form State
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -107,6 +108,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffRole, setNewStaffRole] = useState<'admin' | 'receptionist'>('receptionist');
   const [newStaffPhone, setNewStaffPhone] = useState('');
+  const [newStaffPassword, setNewStaffPassword] = useState('Lusentic1112=');
   const [newStaffAvatar, setNewStaffAvatar] = useState('');
 
   // TEAM / THERAPISTS: Add Therapist Form State
@@ -128,23 +130,97 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
 
   // GALLERY PHOTOS: Add Photo Form State
   const [showAddPhoto, setShowAddPhoto] = useState(false);
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [galleryFilterCategory, setGalleryFilterCategory] = useState('All');
   const [newPhotoTitle, setNewPhotoTitle] = useState('');
   const [newPhotoCategory, setNewPhotoCategory] = useState('Suites');
   const [newPhotoCaption, setNewPhotoCaption] = useState('');
   const [newPhotoImage, setNewPhotoImage] = useState('');
 
+  // EDIT STAFF STATE
+  const [editingStaff, setEditingStaff] = useState<UserProfile | null>(null);
+  const [editStaffFirst, setEditStaffFirst] = useState('');
+  const [editStaffLast, setEditStaffLast] = useState('');
+  const [editStaffUsername, setEditStaffUsername] = useState('');
+  const [editStaffEmail, setEditStaffEmail] = useState('');
+  const [editStaffRole, setEditStaffRole] = useState<'admin' | 'receptionist'>('receptionist');
+  const [editStaffPhone, setEditStaffPhone] = useState('');
+  const [editStaffPassword, setEditStaffPassword] = useState('');
+  const [editStaffAvatar, setEditStaffAvatar] = useState('');
+
+  // EDIT THERAPIST STATE
+  const [editingTherapist, setEditingTherapist] = useState<Therapist | null>(null);
+  const [editThName, setEditThName] = useState('');
+  const [editThRole, setEditThRole] = useState('');
+  const [editThBio, setEditThBio] = useState('');
+  const [editThSpecialties, setEditThSpecialties] = useState('');
+  const [editThAvatar, setEditThAvatar] = useState('');
+
+  // EDIT ARTICLE STATE
+  const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [editArtTitle, setEditArtTitle] = useState('');
+  const [editArtCategory, setEditArtCategory] = useState<'Article' | 'Health Corner'>('Article');
+  const [editArtExcerpt, setEditArtExcerpt] = useState('');
+  const [editArtContent, setEditArtContent] = useState('');
+  const [editArtReadTime, setEditArtReadTime] = useState('4 min read');
+  const [editArtImage, setEditArtImage] = useState('');
+
+  // EDIT GALLERY PHOTO STATE
+  const [editingPhoto, setEditingPhoto] = useState<GalleryItem | null>(null);
+  const [editPhotoTitle, setEditPhotoTitle] = useState('');
+  const [editPhotoCategory, setEditPhotoCategory] = useState('Suites');
+  const [editPhotoCaption, setEditPhotoCaption] = useState('');
+  const [editPhotoImage, setEditPhotoImage] = useState('');
+
+  // TESTIMONIAL MODAL STATE
+  const [isTestimonialModalOpen, setIsTestimonialModalOpen] = useState(false);
+  const [editingTestimonial, setEditingTestimonial] = useState<Testimonial | null>(null);
+
+  // WELCOME PHOTO MODAL STATE
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+
   // SITE SETTINGS: Brand & Contact Info Form State
   const [settingBrandName, setSettingBrandName] = useState(siteSettings.brandName || 'Lusentic');
   const [settingBrandSuffix, setSettingBrandSuffix] = useState(siteSettings.brandSuffix || 'Spa');
   const [settingLogo, setSettingLogo] = useState(siteSettings.logoUrl || '');
-  const [settingPhone, setSettingPhone] = useState(siteSettings.phone);
+  const [settingPhone, setSettingPhone] = useState(siteSettings.phone || '+27 83 815 4513');
+  const [settingWhatsappNumber, setSettingWhatsappNumber] = useState(siteSettings.whatsappNumber || '+27 83 815 4513');
   const [settingEmail, setSettingEmail] = useState(siteSettings.email);
   const [settingAddress, setSettingAddress] = useState(siteSettings.address);
   const [settingHours, setSettingHours] = useState(siteSettings.operatingHours);
   const [settingInstagram, setSettingInstagram] = useState(siteSettings.socials?.instagram || '');
   const [settingFacebook, setSettingFacebook] = useState(siteSettings.socials?.facebook || '');
   const [settingTiktok, setSettingTiktok] = useState(siteSettings.socials?.tiktok || '');
-  const [settingWhatsapp, setSettingWhatsapp] = useState(siteSettings.socials?.whatsapp || '');
+  const [settingWhatsapp, setSettingWhatsapp] = useState(siteSettings.socials?.whatsapp || 'https://wa.me/27838154513');
+
+  // SPECIAL WELCOME BANNER (Herbal Tea Photo & Headline)
+  const [settingWelcomePhoto, setSettingWelcomePhoto] = useState(siteSettings.welcomePhotoUrl || '');
+  const [settingWelcomeBadge, setSettingWelcomeBadge] = useState(siteSettings.welcomeBadgeTitle || 'Special Welcome');
+  const [settingWelcomeTitle, setSettingWelcomeTitle] = useState(siteSettings.welcomeTitle || 'Complimentary Herbal Tea & Foot Soak with Every Session');
+  const [settingWelcomePill, setSettingWelcomePill] = useState(siteSettings.welcomeBadgePill || 'All Guests');
+
+  // SAVE & SUBSCRIBE / MONTHLY MEMBERSHIP SECTION
+  const [settingMembershipBadge, setSettingMembershipBadge] = useState(siteSettings.membershipBadge || 'Subscribe & Save');
+  const [settingMembershipTitle, setSettingMembershipTitle] = useState(siteSettings.membershipTitle || 'Join Our Monthly Membership');
+  const [settingMembershipPrice, setSettingMembershipPrice] = useState(siteSettings.membershipPrice || 'R499');
+  const [settingMembershipPeriod, setSettingMembershipPeriod] = useState(siteSettings.membershipPeriod || '/ Month');
+  const [settingMembershipDesc, setSettingMembershipDesc] = useState(siteSettings.membershipDescription || 'Invest in your continuous physical and mental wellness. Cancel anytime with zero lock-in contracts.');
+  const [settingMembershipBtnText, setSettingMembershipBtnText] = useState(siteSettings.membershipButtonText || 'Subscribe & Save Now');
+  const [settingMembershipClub, setSettingMembershipClub] = useState(siteSettings.membershipClubTitle || 'Lusentic Wellness Club');
+  const [settingMembershipHeading, setSettingMembershipHeading] = useState(siteSettings.membershipHeading || 'Prioritize Your Health with Consistent Monthly Care');
+  const [settingMembershipSubtext, setSettingMembershipSubtext] = useState(siteSettings.membershipSubtext || "True rejuvenation isn't an occasional luxury—it's a sustained discipline. Our membership guarantees you dedicated time every month to decompress, reset muscles, and receive therapist care at our lowest exclusive rates.");
+  const [settingMembershipPerks, setSettingMembershipPerks] = useState<string[]>(siteSettings.membershipPerks || [
+    'One 60-Minute Aromatherapy or Swedish Massage every month',
+    '20% Member Discount on all additional spa services & packages',
+    'Free Hot Stone or Foot Reflexology add-on with every visit',
+    'Priority weekend scheduling & VIP quiet suite access',
+    'Flexible rollovers: Unused credits never expire while active',
+    'Complimentary herbal tea bar & aromatherapy take-home kit',
+  ]);
+  const [newPerkInput, setNewPerkInput] = useState('');
+  const [settingMembershipCount, setSettingMembershipCount] = useState(siteSettings.membershipMembersCount || '420+ Active Club Members');
+  const [settingMembershipFooterNote, setSettingMembershipFooterNote] = useState(siteSettings.membershipFooterNote || 'Exclusive invitation to quarterly seasonal retreats');
+  const [settingMembershipGuarantee, setSettingMembershipGuarantee] = useState(siteSettings.membershipGuarantee || 'Secure auto-billing • Easy 1-click pause');
 
   const showNotification = (msg: string) => {
     setStatusMessage(msg);
@@ -179,16 +255,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
       setSettingBrandName(settings.brandName || 'Lusentic');
       setSettingBrandSuffix(settings.brandSuffix || 'Spa');
       setSettingLogo(settings.logoUrl || '');
-      setSettingPhone(settings.phone || '');
+      setSettingPhone(settings.phone || '+27 83 815 4513');
+      setSettingWhatsappNumber(settings.whatsappNumber || '+27 83 815 4513');
       setSettingEmail(settings.email || '');
       setSettingAddress(settings.address || '');
       setSettingHours(settings.operatingHours || '');
       setSettingInstagram(settings.socials?.instagram || '');
       setSettingFacebook(settings.socials?.facebook || '');
       setSettingTiktok(settings.socials?.tiktok || '');
-      setSettingWhatsapp(settings.socials?.whatsapp || '');
+      setSettingWhatsapp(settings.socials?.whatsapp || 'https://wa.me/27838154513');
+
+      setSettingWelcomePhoto(settings.welcomePhotoUrl || '');
+      setSettingWelcomeBadge(settings.welcomeBadgeTitle || 'Special Welcome');
+      setSettingWelcomeTitle(settings.welcomeTitle || 'Complimentary Herbal Tea & Foot Soak with Every Session');
+      setSettingWelcomePill(settings.welcomeBadgePill || 'All Guests');
+
+      setSettingMembershipBadge(settings.membershipBadge || 'Subscribe & Save');
+      setSettingMembershipTitle(settings.membershipTitle || 'Join Our Monthly Membership');
+      setSettingMembershipPrice(settings.membershipPrice || 'R499');
+      setSettingMembershipPeriod(settings.membershipPeriod || '/ Month');
+      setSettingMembershipDesc(settings.membershipDescription || 'Invest in your continuous physical and mental wellness. Cancel anytime with zero lock-in contracts.');
+      setSettingMembershipBtnText(settings.membershipButtonText || 'Subscribe & Save Now');
+      setSettingMembershipClub(settings.membershipClubTitle || 'Lusentic Wellness Club');
+      setSettingMembershipHeading(settings.membershipHeading || 'Prioritize Your Health with Consistent Monthly Care');
+      setSettingMembershipSubtext(settings.membershipSubtext || "True rejuvenation isn't an occasional luxury—it's a sustained discipline. Our membership guarantees you dedicated time every month to decompress, reset muscles, and receive therapist care at our lowest exclusive rates.");
+      if (Array.isArray(settings.membershipPerks) && settings.membershipPerks.length > 0) {
+        setSettingMembershipPerks(settings.membershipPerks);
+      }
+      setSettingMembershipCount(settings.membershipMembersCount || '420+ Active Club Members');
+      setSettingMembershipFooterNote(settings.membershipFooterNote || 'Exclusive invitation to quarterly seasonal retreats');
+      setSettingMembershipGuarantee(settings.membershipGuarantee || 'Secure auto-billing • Easy 1-click pause');
       setGalleryList(allGallery);
       setTestimonials(allTestimonials);
+
+      const adminProf = authService.getAdminProfile();
+      setAdminFirstName(adminProf.firstName || 'Prince');
+      setAdminLastName(adminProf.lastName || 'Bonya');
     } finally {
       setLoading(false);
     }
@@ -196,12 +298,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
 
   useEffect(() => {
     loadData();
+    const unsubTreat = treatmentService.subscribe((list) => {
+      setTreatments(list);
+    });
+    return () => unsubTreat();
   }, []);
 
-  // Image Uploader with automatic downscaling/compression to prevent LocalStorage quota overflow
+  // Image Uploader with automatic downscaling/compression to prevent quota & cloud database overflow
   const handleFileUpload = (
     e: React.ChangeEvent<HTMLInputElement>,
-    setter: (val: string) => void
+    setter: (val: string) => void,
+    maxDimension: number = 720
   ) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -210,7 +317,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         if (typeof reader.result === 'string') {
           const img = new Image();
           img.onload = () => {
-            const maxDim = 400; // Optimal for logos and badges
+            const maxDim = maxDimension;
             let { width, height } = img;
             if (width > maxDim || height > maxDim) {
               if (width > height) {
@@ -227,7 +334,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
             const ctx = canvas.getContext('2d');
             if (ctx) {
               ctx.drawImage(img, 0, 0, width, height);
-              const compressedDataUrl = canvas.toDataURL('image/png', 0.9);
+              // Use JPEG 0.76 for high visual quality while keeping payload ~35-55KB
+              const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.76);
               setter(compressedDataUrl);
             } else {
               setter(reader.result as string);
@@ -237,6 +345,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         }
       };
       reader.readAsDataURL(file);
+      // Reset input value so selecting the same file again works
+      e.target.value = '';
     }
   };
 
@@ -266,25 +376,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   // 3. Treatment CMS
   const handleCreateTreatment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTreatName) return;
+    if (!newTreatName.trim()) return;
 
-    await treatmentService.addTreatment({
-      name: newTreatName,
-      price: Number(newTreatPrice),
-      duration: Number(newTreatDuration),
-      category: newTreatCategory || (categories[0] || 'massage'),
-      description: newTreatDesc,
-      isMonthlySpecial: false,
-      rating: 5.0,
-      imageUrl: newTreatImage || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80',
-    });
+    try {
+      await treatmentService.addTreatment({
+        name: newTreatName.trim(),
+        price: Number(newTreatPrice) || 500,
+        duration: Number(newTreatDuration) || 60,
+        category: newTreatCategory || (categories[0] || 'Massage Therapy'),
+        description: newTreatDesc.trim(),
+        isMonthlySpecial: false,
+        rating: 5.0,
+        imageUrl: newTreatImage || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80',
+      });
 
-    setNewTreatName('');
-    setNewTreatDesc('');
-    setNewTreatImage('');
-    setShowAddTreatment(false);
-    showNotification('New treatment therapy added to sanctuary catalog');
-    loadData();
+      setNewTreatName('');
+      setNewTreatDesc('');
+      setNewTreatImage('');
+      setShowAddTreatment(false);
+      showNotification('✓ Therapy added & instantly synced to cloud database (visible across all phones, PCs & TVs)!');
+      loadData();
+    } catch (err) {
+      console.error('Failed to create treatment:', err);
+      showNotification('Error syncing treatment to cloud database. Please verify connection.');
+    }
   };
 
   const handleStartEditTreatment = (t: Treatment) => {
@@ -299,20 +414,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
 
   const handleSaveEditTreatment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTreatment || !editTreatName) return;
+    if (!editingTreatment || !editTreatName.trim()) return;
 
-    await treatmentService.updateTreatment(editingTreatment.id, {
-      name: editTreatName,
-      price: Number(editTreatPrice),
-      duration: Number(editTreatDuration),
-      category: editTreatCategory,
-      description: editTreatDesc,
-      imageUrl: editTreatImage,
-    });
+    try {
+      await treatmentService.updateTreatment(editingTreatment.id, {
+        name: editTreatName.trim(),
+        price: Number(editTreatPrice) || 500,
+        duration: Number(editTreatDuration) || 60,
+        category: editTreatCategory,
+        description: editTreatDesc.trim(),
+        imageUrl: editTreatImage,
+      });
 
-    setEditingTreatment(null);
-    showNotification(`Treatment "${editTreatName}" updated successfully`);
-    loadData();
+      setEditingTreatment(null);
+      showNotification(`✓ Therapy "${editTreatName}" updated & synced across all devices!`);
+      loadData();
+    } catch (err) {
+      console.error('Failed to update treatment:', err);
+      showNotification('Error syncing updated treatment.');
+    }
   };
 
   const handleDeleteTreatment = async (id: number) => {
@@ -333,6 +453,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
       email: newStaffEmail,
       role: newStaffRole,
       phone: newStaffPhone,
+      password: newStaffPassword.trim() || 'Lusentic1112=',
       avatar: newStaffAvatar || undefined,
     });
 
@@ -341,9 +462,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     setNewStaffUsername('');
     setNewStaffEmail('');
     setNewStaffPhone('');
+    setNewStaffPassword('Lusentic1112=');
     setNewStaffAvatar('');
     setShowAddStaff(false);
-    showNotification(`New ${newStaffRole} registered successfully`);
+    showNotification(`New ${newStaffRole} registered successfully with custom credentials`);
+    loadData();
+  };
+
+  const handleDeleteStaff = async (id: number) => {
+    await authService.removeStaff(id);
+    showNotification('Staff personnel removed');
     loadData();
   };
 
@@ -409,6 +537,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   };
 
   // 7. Gallery Photos Management
+  const handleAddPhotoModalSave = async (photo: Omit<GalleryItem, 'id'>) => {
+    await galleryService.addPhoto(photo);
+    showNotification(`New sanctuary atmosphere photo "${photo.title}" added to gallery`);
+    loadData();
+  };
+
+  const handleUpdatePhotoModalSave = async (id: number, updates: Partial<GalleryItem>) => {
+    await galleryService.updatePhoto(id, updates);
+    showNotification(`Gallery photo updated successfully`);
+    loadData();
+  };
+
+  const handleResetGalleryDefaults = async () => {
+    const confirmed = window.confirm('Restore initial showcase gallery photos?');
+    if (!confirmed) return;
+    await galleryService.resetToDefault();
+    showNotification('Restored initial sanctuary gallery collection');
+    loadData();
+  };
+
   const handleAddPhotoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPhotoTitle || !newPhotoImage) return;
@@ -434,33 +582,219 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     loadData();
   };
 
+  // EDIT INITIALIZERS
+  const handleStartEditStaff = (staff: UserProfile) => {
+    setEditingStaff(staff);
+    setEditStaffFirst(staff.firstName || '');
+    setEditStaffLast(staff.lastName || '');
+    setEditStaffUsername(staff.username || '');
+    setEditStaffEmail(staff.email || '');
+    setEditStaffRole(staff.role === 'admin' ? 'admin' : 'receptionist');
+    setEditStaffPhone(staff.phone || '');
+    setEditStaffPassword('');
+    setEditStaffAvatar(staff.avatar || staff.profilePhoto || '');
+  };
+
+  const handleStartEditTherapist = (th: Therapist) => {
+    setEditingTherapist(th);
+    setEditThName(th.name);
+    setEditThRole(th.role);
+    setEditThBio(th.bio);
+    setEditThSpecialties(th.specialties.join(', '));
+    setEditThAvatar(th.avatar || '');
+  };
+
+  const handleStartEditArticle = (art: Article) => {
+    setEditingArticle(art);
+    setEditArtTitle(art.title);
+    setEditArtCategory(art.category === 'Health Corner' ? 'Health Corner' : 'Article');
+    setEditArtExcerpt(art.summary || '');
+    setEditArtContent(art.content || '');
+    setEditArtReadTime(art.readTime || '4 min read');
+    setEditArtImage(art.imageUrl || '');
+  };
+
+  const handleStartEditPhoto = (photo: GalleryItem) => {
+    setEditingPhoto(photo);
+    setEditPhotoTitle(photo.title);
+    setEditPhotoCategory(photo.category);
+    setEditPhotoCaption(photo.caption || '');
+    setEditPhotoImage(photo.image);
+  };
+
+  // EDIT SUBMIT HANDLERS
+  const handleSaveEditStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaff || !editStaffFirst) return;
+
+    await authService.updateStaff(editingStaff.id, {
+      firstName: editStaffFirst.trim(),
+      lastName: editStaffLast.trim(),
+      username: editStaffUsername.trim(),
+      email: editStaffEmail.trim(),
+      role: editStaffRole,
+      phone: editStaffPhone.trim() || undefined,
+      password: editStaffPassword.trim() ? editStaffPassword.trim() : undefined,
+      avatar: editStaffAvatar || editingStaff.avatar,
+    });
+
+    setEditingStaff(null);
+    showNotification(`Personnel account "${editStaffFirst}" updated successfully`);
+    loadData();
+  };
+
+  const handleSaveEditTherapist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTherapist || !editThName) return;
+
+    await therapistService.updateTherapist(editingTherapist.id, {
+      name: editThName.trim(),
+      role: editThRole.trim(),
+      bio: editThBio.trim(),
+      specialties: editThSpecialties.split(',').map((s) => s.trim()).filter(Boolean),
+      avatar: editThAvatar || editingTherapist.avatar,
+    });
+
+    setEditingTherapist(null);
+    showNotification(`Therapist "${editThName}" updated successfully`);
+    loadData();
+  };
+
+  const handleSaveEditArticle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingArticle || !editArtTitle) return;
+
+    await articleService.updateArticle(editingArticle.id, {
+      title: editArtTitle.trim(),
+      category: editArtCategory,
+      summary: editArtExcerpt.trim() || editArtContent.slice(0, 100) + '...',
+      content: editArtContent.trim(),
+      readTime: editArtReadTime.trim(),
+      imageUrl: editArtImage || editingArticle.imageUrl,
+    });
+
+    setEditingArticle(null);
+    showNotification(`Article "${editArtTitle}" updated successfully`);
+    loadData();
+  };
+
+  const handleSaveEditPhoto = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPhoto || !editPhotoTitle) return;
+
+    await galleryService.updatePhoto(editingPhoto.id, {
+      title: editPhotoTitle.trim(),
+      category: editPhotoCategory,
+      caption: editPhotoCaption.trim(),
+      image: editPhotoImage || editingPhoto.image,
+    });
+
+    setEditingPhoto(null);
+    showNotification(`Gallery photo "${editPhotoTitle}" updated successfully`);
+    loadData();
+  };
+
   // 8. Testimonials Management
+  const handleAddTestimonial = async (data: Omit<Testimonial, 'id' | 'date'>) => {
+    await testimonialService.addTestimonial(data);
+    showNotification(`New guest review from "${data.name}" added to Words of Serenity`);
+    loadData();
+  };
+
+  const handleUpdateTestimonial = async (id: number, updates: Partial<Testimonial>) => {
+    await testimonialService.updateTestimonial(id, updates);
+    showNotification(`Guest review updated successfully`);
+    loadData();
+  };
+
   const handleDeleteTestimonial = async (id: number) => {
+    const confirmed = window.confirm('Are you sure you want to remove this guest review?');
+    if (!confirmed) return;
     await testimonialService.deleteTestimonial(id);
     showNotification('Guest testimonial removed successfully');
     loadData();
   };
 
-  // 8. Site Branding & Contact Info
-  const handleSaveSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    settingsService.updateSettings({
-      brandName: settingBrandName.trim() || 'Lusentic',
-      brandSuffix: settingBrandSuffix.trim() || 'Spa',
-      logoUrl: settingLogo,
-      phone: settingPhone,
-      email: settingEmail,
-      address: settingAddress,
-      operatingHours: settingHours,
-      socials: {
-        instagram: settingInstagram,
-        facebook: settingFacebook,
-        tiktok: settingTiktok,
-        whatsapp: settingWhatsapp,
-      },
-    });
-    showNotification('Site logo, brand title, footer contact info, and socials saved!');
+  // Gallery clear
+  const handleClearAllPhotos = async () => {
+    const confirmed = window.confirm('Are you sure you want to remove ALL photos from the gallery? This will allow you to start completely fresh with your own custom uploads.');
+    if (!confirmed) return;
+    await galleryService.clearAllPhotos();
+    showNotification('All gallery photos removed from cloud database and device.');
     loadData();
+  };
+
+  // 9. Site Branding, Welcome Banner, Membership & Contact Info
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const finalWhatsAppUrl = settingWhatsapp.trim() || getCleanWhatsAppUrl(settingWhatsappNumber);
+
+      await settingsService.updateSettings({
+        brandName: settingBrandName.trim() || 'Lusentic',
+        brandSuffix: settingBrandSuffix.trim() || 'Spa',
+        logoUrl: settingLogo,
+        phone: settingPhone.trim() || '+27 83 815 4513',
+        whatsappNumber: settingWhatsappNumber.trim() || '+27 83 815 4513',
+        email: settingEmail.trim(),
+        address: settingAddress.trim(),
+        operatingHours: (settingHours || '').trim(),
+        socials: {
+          instagram: settingInstagram.trim(),
+          facebook: settingFacebook.trim(),
+          tiktok: settingTiktok.trim(),
+          whatsapp: finalWhatsAppUrl,
+        },
+        // Special Welcome Herbal Tea banner
+        welcomePhotoUrl: settingWelcomePhoto.trim() || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1400&q=80',
+        welcomeBadgeTitle: settingWelcomeBadge.trim() || 'Special Welcome',
+        welcomeTitle: settingWelcomeTitle.trim() || 'Complimentary Herbal Tea & Foot Soak with Every Session',
+        welcomeBadgePill: settingWelcomePill.trim() || 'All Guests',
+        // Save & Subscribe / Monthly Membership section
+        membershipBadge: settingMembershipBadge.trim() || 'Subscribe & Save',
+        membershipTitle: settingMembershipTitle.trim() || 'Join Our Monthly Membership',
+        membershipPrice: settingMembershipPrice.trim() || 'R499',
+        membershipPeriod: settingMembershipPeriod.trim() || '/ Month',
+        membershipDescription: settingMembershipDesc.trim(),
+        membershipButtonText: settingMembershipBtnText.trim() || 'Subscribe & Save Now',
+        membershipClubTitle: settingMembershipClub.trim() || 'Lusentic Wellness Club',
+        membershipHeading: settingMembershipHeading.trim() || 'Prioritize Your Health with Consistent Monthly Care',
+        membershipSubtext: settingMembershipSubtext.trim(),
+        membershipPerks: settingMembershipPerks,
+        membershipMembersCount: settingMembershipCount.trim() || '420+ Active Club Members',
+        membershipFooterNote: settingMembershipFooterNote.trim(),
+        membershipGuarantee: settingMembershipGuarantee.trim(),
+      });
+
+      await authService.updateAdminProfile({
+        firstName: adminFirstName.trim() || 'Prince',
+        lastName: adminLastName.trim() || 'Bonya',
+      });
+
+      showNotification('Settings, photos, and membership details saved & synced across all devices!');
+      loadData();
+    } catch (err: any) {
+      console.error('Error saving settings:', err);
+      showNotification('Saved locally. Note: check Firebase connection if cloud sync takes a moment.');
+      loadData();
+    }
+  };
+
+  const handleSaveWelcomeBannerNow = async () => {
+    try {
+      const bannerPhoto = settingWelcomePhoto.trim() || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1400&q=80';
+      await settingsService.updateSettings({
+        welcomePhotoUrl: bannerPhoto,
+        welcomeBadgeTitle: settingWelcomeBadge.trim() || 'Special Welcome',
+        welcomeTitle: settingWelcomeTitle.trim() || 'Complimentary Herbal Tea & Foot Soak with Every Session',
+        welcomeBadgePill: settingWelcomePill.trim() || 'All Guests',
+      });
+      showNotification('✓ Special Welcome photo & offer saved and synced across all devices!');
+      loadData();
+    } catch (err) {
+      console.error('Failed to save welcome banner:', err);
+      showNotification('Failed to sync welcome banner to cloud. Please retry.');
+    }
   };
 
   // Stats
@@ -530,7 +864,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
           {/* Role badge */}
           <div className="mb-4 p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between text-xs">
             <div>
-              <p className="font-bold text-white">{user?.firstName} {user?.lastName}</p>
+              <p className="font-bold text-white">
+                {isAdmin ? `${adminFirstName} ${adminLastName}` : `${user?.firstName} ${user?.lastName || ''}`}
+              </p>
               <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase mt-1 ${
                 isAdmin ? 'bg-[#e8b4b8] text-[#1a1418]' : 'bg-emerald-500/20 text-emerald-300'
               }`}>
@@ -579,6 +915,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
           >
             <ArrowLeft className="w-4 h-4 text-[#e8b4b8]" />
             <span>Return to Public Website</span>
+          </button>
+
+          <button
+            onClick={async () => {
+              await logout();
+              onBackToHome();
+            }}
+            className="w-full py-2 px-3 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-red-200 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+          >
+            <span>Sign Out of Portal</span>
           </button>
         </div>
       </aside>
@@ -729,7 +1075,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                   placeholder="Filter client, ID, therapist..."
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  className="w-full h-10 pl-9 pr-3 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e]"
+                  className="w-full h-10 pl-9 pr-3 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#d49a9e]"
                 />
               </div>
             </div>
@@ -924,10 +1270,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                       value={newTreatCategory}
                       onChange={(e) => setNewTreatCategory(e.target.value)}
                       required
-                      className="w-full h-11 px-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e] capitalize"
+                      className="w-full h-11 px-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white text-xs focus:outline-none focus:border-[#d49a9e] capitalize"
                     >
                       {categories.map((c) => (
-                        <option key={c} value={c} className="bg-[var(--bg-card)] text-[var(--text-primary)] capitalize">
+                        <option key={c} value={c} className="bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white capitalize">
                           {c}
                         </option>
                       ))}
@@ -978,7 +1324,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                     value={newTreatDesc}
                     onChange={(e) => setNewTreatDesc(e.target.value)}
                     placeholder="Describe therapeutic oils, muscle techniques, sensory notes..."
-                    className="w-full p-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e] resize-none"
+                    className="w-full p-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#d49a9e] resize-none"
                   />
                 </div>
 
@@ -1072,10 +1418,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                           value={editTreatCategory}
                           onChange={(e) => setEditTreatCategory(e.target.value)}
                           required
-                          className="w-full h-11 px-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e] capitalize"
+                          className="w-full h-11 px-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white text-xs focus:outline-none focus:border-[#d49a9e] capitalize"
                         >
                           {categories.map((c) => (
-                            <option key={c} value={c} className="bg-[var(--bg-card)] text-[var(--text-primary)] capitalize">
+                            <option key={c} value={c} className="bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white capitalize">
                               {c}
                             </option>
                           ))}
@@ -1125,7 +1471,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                         value={editTreatDesc}
                         onChange={(e) => setEditTreatDesc(e.target.value)}
                         placeholder="Describe therapeutic oils, muscle techniques, sensory notes..."
-                        className="w-full p-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e] resize-none"
+                        className="w-full p-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#d49a9e] resize-none"
                       />
                     </div>
 
@@ -1211,20 +1557,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                     <select
                       value={newStaffRole}
                       onChange={(e) => setNewStaffRole(e.target.value as 'admin' | 'receptionist')}
-                      className="w-full h-11 px-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e]"
+                      className="w-full h-11 px-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white text-xs focus:outline-none focus:border-[#d49a9e]"
                     >
-                      <option value="receptionist" className="bg-[var(--bg-card)]">Receptionist (Bookings &amp; Schedules)</option>
-                      <option value="admin" className="bg-[var(--bg-card)]">Administrator (Full Control)</option>
+                      <option value="receptionist" className="bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white">Receptionist (Bookings &amp; Schedules)</option>
+                      <option value="admin" className="bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white">Administrator (Full Control)</option>
                     </select>
                   </div>
                 </div>
 
-                <Input
-                  label="Contact Phone Number"
-                  value={newStaffPhone}
-                  onChange={(e) => setNewStaffPhone(e.target.value)}
-                  placeholder="e.g. +27 82 555 0192"
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Contact Phone Number"
+                    value={newStaffPhone}
+                    onChange={(e) => setNewStaffPhone(e.target.value)}
+                    placeholder="e.g. +27 82 555 0192"
+                  />
+                  <Input
+                    label="Login Password *"
+                    type="password"
+                    value={newStaffPassword}
+                    onChange={(e) => setNewStaffPassword(e.target.value)}
+                    placeholder="Minimum 6 characters"
+                    required
+                  />
+                </div>
 
                 {/* Avatar from internal storage */}
                 <div>
@@ -1263,35 +1619,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                     <th className="py-3 px-4">Role</th>
                     <th className="py-3 px-4">Email</th>
                     <th className="py-3 px-4">Phone</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border-light)]">
-                  {staffList.map((s) => (
-                    <tr key={s.id} className="hover:bg-black/2 dark:hover:bg-white/2 transition-colors">
-                      <td className="py-3 px-4 flex items-center gap-3">
-                        {s.avatar ? (
-                          <img src={s.avatar} alt={s.firstName} className="w-9 h-9 rounded-full object-cover border border-[#e8b4b8]" />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-[#e8b4b8] text-[#1a1418] font-bold flex items-center justify-center text-xs">
-                            {s.firstName.charAt(0)}
+                  {staffList.map((s) => {
+                    const isDefaultAdmin = s.username === 'admin@lusentic.com';
+                    const displayName = isDefaultAdmin ? `${adminFirstName} ${adminLastName}` : `${s.firstName} ${s.lastName}`;
+                    return (
+                      <tr key={s.id} className="hover:bg-black/2 dark:hover:bg-white/2 transition-colors">
+                        <td className="py-3 px-4 flex items-center gap-3">
+                          {s.avatar ? (
+                            <img src={s.avatar} alt={displayName} className="w-9 h-9 rounded-full object-cover border border-[#e8b4b8]" />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-[#e8b4b8] text-[#1a1418] font-bold flex items-center justify-center text-xs">
+                              {displayName.charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-bold text-[var(--text-primary)]">{displayName}</p>
+                            <p className="text-[11px] text-[var(--text-muted)]">@{s.username}</p>
                           </div>
-                        )}
-                        <div>
-                          <p className="font-bold text-[var(--text-primary)]">{s.firstName} {s.lastName}</p>
-                          <p className="text-[11px] text-[var(--text-muted)]">@{s.username}</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                          s.role === 'admin' ? 'bg-[#e8b4b8]/20 text-[#b57377] dark:text-[#e8b4b8]' : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
-                        }`}>
-                          {s.role}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-[var(--text-muted)]">{s.email}</td>
-                      <td className="py-3 px-4 text-[var(--text-muted)]">{s.phone || '—'}</td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
+                            s.role === 'admin' ? 'bg-[#e8b4b8]/20 text-[#b57377] dark:text-[#e8b4b8]' : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                          }`}>
+                            {s.role}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-[var(--text-muted)]">{s.email}</td>
+                        <td className="py-3 px-4 text-[var(--text-muted)]">{s.phone || '—'}</td>
+                        <td className="py-3 px-4 text-right">
+                          {isDefaultAdmin ? (
+                            <span className="text-[11px] font-semibold text-[#b57377] dark:text-[#e8b4b8]">Primary Admin</span>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => handleStartEditStaff(s)}
+                                className="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 rounded-lg cursor-pointer transition-colors"
+                                title="Edit Personnel"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteStaff(s.id)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer"
+                                title="Remove Personnel"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1381,7 +1764,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                     value={newThBio}
                     onChange={(e) => setNewThBio(e.target.value)}
                     placeholder="Over 8 years of dedicated practice in mindfulness and body rehabilitation..."
-                    className="w-full p-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e] resize-none"
+                    className="w-full p-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#d49a9e] resize-none"
                   />
                 </div>
 
@@ -1414,13 +1797,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                     </div>
                   </div>
                   {isAdmin && (
-                    <button
-                      onClick={() => handleDeleteTherapist(th.id)}
-                      className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer shrink-0"
-                      title="Delete Therapist"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleStartEditTherapist(th)}
+                        className="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 rounded-lg cursor-pointer transition-colors"
+                        title="Edit Therapist"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTherapist(th.id)}
+                        className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer transition-colors"
+                        title="Delete Therapist"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -1511,7 +1903,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                     onChange={(e) => setNewArtContent(e.target.value)}
                     placeholder="Write your therapeutic insights, daily rituals, guidance..."
                     required
-                    className="w-full p-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e]"
+                    className="w-full p-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#d49a9e]"
                   />
                 </div>
 
@@ -1539,13 +1931,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] mt-2">
                       <span>{art.date} • {art.readTime}</span>
-                      <button
-                        onClick={() => handleDeleteArticle(art.id)}
-                        className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded cursor-pointer"
-                        title="Delete Article"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleStartEditArticle(art)}
+                          className="p-1 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 rounded cursor-pointer transition-colors"
+                          title="Edit Article"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteArticle(art.id)}
+                          className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded cursor-pointer"
+                          title="Delete Article"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1563,112 +1964,121 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                   Atmosphere &amp; Gallery Photos ({galleryList.length})
                 </h1>
                 <p className="text-xs text-[var(--text-muted)]">
-                  Manage the public gallery showcase by uploading photos selected directly from internal storage.
+                  Manage the public sanctuary gallery by uploading from device storage or selecting from the spa media library.
                 </p>
               </div>
 
-              <Button
-                variant="primary"
-                size="md"
-                icon={<Camera className="w-4 h-4" />}
-                onClick={() => setShowAddPhoto(!showAddPhoto)}
-                className="font-bold text-xs sm:text-sm"
-              >
-                {showAddPhoto ? 'Cancel' : 'Add Photo from Storage'}
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<Trash2 className="w-3.5 h-3.5 text-red-500" />}
+                  onClick={handleClearAllPhotos}
+                  className="text-xs font-semibold text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950/20"
+                >
+                  Clear All Photos
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<RotateCcw className="w-3.5 h-3.5" />}
+                  onClick={handleResetGalleryDefaults}
+                  className="text-xs font-semibold"
+                >
+                  Reset Defaults
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  icon={<Camera className="w-4 h-4" />}
+                  onClick={() => {
+                    setEditingPhoto(null);
+                    setIsPhotoModalOpen(true);
+                  }}
+                  className="font-bold text-xs sm:text-sm"
+                >
+                  Add Photo from Storage
+                </Button>
+              </div>
             </div>
 
-            {/* Add Photo Form */}
-            {showAddPhoto && (
-              <form onSubmit={handleAddPhotoSubmit} className="p-6 rounded-[24px] bg-[var(--bg-card)] border border-[#e8b4b8] shadow-xl space-y-4 animate-in fade-in duration-200">
-                <h3 className="font-serif-luxury text-xl font-bold text-[var(--text-primary)]">
-                  Upload Sanctuary Atmosphere Photo
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input
-                    label="Photo Title *"
-                    placeholder="e.g. Hydrotherapy Zen Garden Suite"
-                    value={newPhotoTitle}
-                    onChange={(e) => setNewPhotoTitle(e.target.value)}
-                    required
-                  />
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
-                      Gallery Category *
-                    </label>
-                    <select
-                      value={newPhotoCategory}
-                      onChange={(e) => setNewPhotoCategory(e.target.value)}
-                      className="w-full h-11 px-3.5 rounded-xl border border-[var(--border-light)] bg-transparent text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#d49a9e]"
-                    >
-                      <option value="Suites" className="bg-[var(--bg-card)]">Suites</option>
-                      <option value="Therapies" className="bg-[var(--bg-card)]">Therapies</option>
-                      <option value="Products" className="bg-[var(--bg-card)]">Products</option>
-                      <option value="Facilities" className="bg-[var(--bg-card)]">Facilities</option>
-                    </select>
-                  </div>
-                </div>
-
-                <Input
-                  label="Short Caption"
-                  placeholder="e.g. Private thermal garden tub surrounded by aromatic jasmine..."
-                  value={newPhotoCaption}
-                  onChange={(e) => setNewPhotoCaption(e.target.value)}
-                />
-
-                {/* Photo file selection from internal storage */}
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
-                    Select Photo from Internal Storage *
-                  </label>
-                  <div className="flex items-center gap-4">
-                    {newPhotoImage && (
-                      <img src={newPhotoImage} alt="Preview" className="w-20 h-20 rounded-xl object-cover border border-[#e8b4b8]" />
-                    )}
-                    <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-100 dark:bg-white/10 hover:bg-stone-200 dark:hover:bg-white/20 border border-[var(--border-light)] text-xs font-bold text-[var(--text-primary)] cursor-pointer">
-                      <Camera className="w-4 h-4 text-[#d49a9e]" />
-                      <span>{newPhotoImage ? 'Change Photo' : 'Select Photo from Device Storage'}</span>
-                      <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setNewPhotoImage)} className="hidden" />
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-2">
-                  <Button variant="outline" size="sm" type="button" onClick={() => setShowAddPhoto(false)}>
-                    Cancel
-                  </Button>
-                  <Button variant="primary" size="sm" type="submit" className="font-bold">
-                    Add to Gallery
-                  </Button>
-                </div>
-              </form>
-            )}
+            {/* Category filter tabs */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {['All', 'Suites', 'Therapies', 'Products', 'Facilities'].map((cat) => {
+                const count = cat === 'All'
+                  ? galleryList.length
+                  : galleryList.filter((i) => i.category.toLowerCase() === cat.toLowerCase()).length;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setGalleryFilterCategory(cat)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      galleryFilterCategory === cat
+                        ? 'bg-[#e8b4b8] text-[#1a1418] font-bold shadow-xs'
+                        : 'bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    <span>{cat}</span>
+                    <span className="text-[10px] opacity-80">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
 
             {/* Gallery Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {galleryList.map((item) => (
-                <div key={item.id} className="group relative rounded-2xl overflow-hidden aspect-square border border-[var(--border-light)] bg-stone-100 dark:bg-white/5">
-                  <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-3 flex flex-col justify-between text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() => handleDeletePhoto(item.id)}
-                        className="p-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white cursor-pointer shadow-md"
-                        title="Delete photo"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase tracking-wider font-bold text-[#e8b4b8]">{item.category}</span>
-                      <p className="text-xs font-bold line-clamp-1">{item.title}</p>
-                    </div>
+            {(() => {
+              const displayList = galleryFilterCategory === 'All'
+                ? galleryList
+                : galleryList.filter((i) => i.category.toLowerCase() === galleryFilterCategory.toLowerCase());
+
+              if (displayList.length === 0) {
+                return (
+                  <div className="text-center py-12 px-4 rounded-[24px] border border-dashed border-[var(--border-light)] bg-stone-50/50 dark:bg-white/5 space-y-2">
+                    <Camera className="w-8 h-8 text-[var(--text-muted)] mx-auto opacity-50" />
+                    <p className="text-xs font-bold text-[var(--text-primary)]">No photos in {galleryFilterCategory}</p>
+                    <p className="text-[11px] text-[var(--text-muted)]">Click "Add Photo from Storage" above to upload or select photos.</p>
                   </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {displayList.map((item) => (
+                    <div key={item.id} className="group relative rounded-2xl overflow-hidden aspect-square border border-[var(--border-light)] bg-stone-100 dark:bg-white/5 shadow-sm">
+                      <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                      
+                      {/* Persistent Quick Action Pill in Top Right Corner */}
+                      <div className="absolute top-2 right-2 z-10 flex items-center gap-1 p-1 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 shadow-md">
+                        <button
+                          onClick={() => {
+                            setEditingPhoto(item);
+                            setIsPhotoModalOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white cursor-pointer shadow-xs transition-colors"
+                          title="Edit photo details"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePhoto(item.id)}
+                          className="p-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white cursor-pointer shadow-xs transition-colors"
+                          title="Delete photo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Always visible bottom caption card */}
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-3 pt-6 text-white">
+                        <span className="text-[9px] uppercase tracking-wider font-bold text-[#e8b4b8]">{item.category}</span>
+                        <p className="text-xs font-bold line-clamp-1">{item.title}</p>
+                        <p className="text-[10px] text-white/70 line-clamp-1">{item.caption}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1685,6 +2095,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
             </div>
 
             <form onSubmit={handleSaveSettings} className="space-y-6">
+              {/* Dynamic Super Administrator Profile */}
+              <div className="p-4 rounded-2xl bg-stone-50 dark:bg-white/5 border border-[var(--border-light)] space-y-4">
+                <h3 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-[#d49a9e]" />
+                  <span>Super Administrator Profile (Dynamic Name)</span>
+                </h3>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Primary administrator name for Lusentic Spa. You can update this name dynamically at any time.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Admin First Name *"
+                    value={adminFirstName}
+                    onChange={(e) => setAdminFirstName(e.target.value)}
+                    placeholder="Prince"
+                    required
+                  />
+                  <Input
+                    label="Admin Last Name *"
+                    value={adminLastName}
+                    onChange={(e) => setAdminLastName(e.target.value)}
+                    placeholder="Bonya"
+                    required
+                  />
+                </div>
+                <div className="text-[11px] text-[var(--text-muted)] flex items-center gap-2">
+                  <span>Username: <strong>admin@lusentic.com</strong></span>
+                  <span>•</span>
+                  <span>Role: <strong>Super Administrator</strong></span>
+                </div>
+              </div>
+
               {/* Logo & Brand Identity */}
               <div className="p-4 rounded-2xl bg-stone-50 dark:bg-white/5 border border-[var(--border-light)] space-y-4">
                 <h3 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
@@ -1750,17 +2193,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
               <div className="p-4 rounded-2xl bg-stone-50 dark:bg-white/5 border border-[var(--border-light)] space-y-4">
                 <h3 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
                   <Phone className="w-4 h-4 text-[#d49a9e]" />
-                  <span>Footer Contact Information</span>
+                  <span>Sanctuary Contact &amp; WhatsApp Concierge</span>
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
-                    label="Sanctuary Phone / WhatsApp Number *"
+                    label="Sanctuary Primary Phone *"
                     value={settingPhone}
                     onChange={(e) => setSettingPhone(e.target.value)}
-                    placeholder="+27 82 555 0192"
+                    placeholder="+27 83 815 4513"
                     required
                   />
+                  <div>
+                    <Input
+                      label="WhatsApp Request &amp; Booking Number *"
+                      value={settingWhatsappNumber}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSettingWhatsappNumber(val);
+                        setSettingWhatsapp(getCleanWhatsAppUrl(val));
+                      }}
+                      placeholder="+27 83 815 4513"
+                      required
+                    />
+                    <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] mt-1">
+                      <span>Used for client appointment confirmations &amp; vouchers</span>
+                      {settingWhatsappNumber && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSettingWhatsappNumber('');
+                            setSettingWhatsapp('');
+                          }}
+                          className="text-red-500 hover:text-red-600 font-medium cursor-pointer"
+                        >
+                          Clear Number
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label="Support Email Address *"
                     type="email"
@@ -1769,13 +2243,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                     placeholder="concierge@lusenticspa.com"
                     required
                   />
+                  <Input
+                    label="WhatsApp Direct Chat Link"
+                    value={settingWhatsapp}
+                    onChange={(e) => setSettingWhatsapp(e.target.value)}
+                    placeholder="https://wa.me/27838154513"
+                  />
                 </div>
 
                 <Input
                   label="Physical Address / Sanctuary Location"
                   value={settingAddress}
                   onChange={(e) => setSettingAddress(e.target.value)}
-                  placeholder="14 Serenity Ridge, Camps Bay, Cape Town, South Africa"
+                  placeholder="128 Rosebank Boulevard, Sanctuary Quarter, Johannesburg, 2196"
                 />
 
                 <Input
@@ -1784,6 +2264,298 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                   onChange={(e) => setSettingHours(e.target.value)}
                   placeholder="Mon – Sun: 08:00 AM – 20:00 PM"
                 />
+              </div>
+
+              {/* Special Welcome Herbal Tea Photo & Banner */}
+              <div className="p-4 rounded-2xl bg-stone-50 dark:bg-white/5 border border-[var(--border-light)] space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#d49a9e]" />
+                    <span>Special Welcome Photo &amp; Offer (Complimentary Herbal Tea)</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setIsWelcomeModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#e8b4b8] text-[#1a1418] text-xs font-bold shadow-xs hover:bg-[#d49a9e] transition-colors cursor-pointer"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Open Media Library</span>
+                  </button>
+                </div>
+
+                <p className="text-xs text-[var(--text-muted)]">
+                  The featured welcome visual displayed under the Hero section with the Complimentary Herbal Tea guarantee.
+                </p>
+
+                {/* Welcome Photo Preview */}
+                <div className="relative h-40 sm:h-48 rounded-xl overflow-hidden border border-[var(--border-light)] bg-black/10">
+                  <img
+                    src={settingWelcomePhoto || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1400&q=80'}
+                    alt="Welcome Banner"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent p-3 flex flex-col justify-end text-white">
+                    <p className="text-[10px] uppercase font-bold text-[#e8b4b8]">{settingWelcomeBadge}</p>
+                    <p className="text-xs font-bold">{settingWelcomeTitle}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <label className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#e8b4b8] text-[#1a1418] hover:bg-[#d49a9e] font-bold cursor-pointer transition-colors shadow-xs">
+                    <Camera className="w-3.5 h-3.5 text-[#1a1418]" />
+                    <span>Upload from Device Storage</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        handleFileUpload(e, async (dataUrl) => {
+                          setSettingWelcomePhoto(dataUrl);
+                          try {
+                            await settingsService.updateSettings({
+                              welcomePhotoUrl: dataUrl,
+                              welcomeBadgeTitle: settingWelcomeBadge.trim() || 'Special Welcome',
+                              welcomeTitle: settingWelcomeTitle.trim() || 'Complimentary Herbal Tea & Foot Soak with Every Session',
+                              welcomeBadgePill: settingWelcomePill.trim() || 'All Guests',
+                            });
+                            showNotification('✓ Special Welcome photo uploaded and instantly synced to all devices!');
+                          } catch (err) {
+                            console.warn('Welcome photo set in state:', err);
+                          }
+                        }, 800);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const def = 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1400&q=80';
+                      setSettingWelcomePhoto(def);
+                      settingsService.updateSettings({ welcomePhotoUrl: def }).catch(() => {});
+                      showNotification('Restored sanctuary default welcome photo');
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-white/10 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset Default Photo</span>
+                  </button>
+
+                  {settingWelcomePhoto && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettingWelcomePhoto('');
+                        settingsService.updateSettings({ welcomePhotoUrl: '' }).catch(() => {});
+                        showNotification('Photo cleared. Default ambiance will display.');
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Photo</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[var(--border-light)]">
+                  <Input
+                    label="Welcome Headline & Offer"
+                    value={settingWelcomeTitle}
+                    onChange={(e) => setSettingWelcomeTitle(e.target.value)}
+                    placeholder="Complimentary Herbal Tea & Foot Soak with Every Session"
+                  />
+                  <Input
+                    label="Badge Title"
+                    value={settingWelcomeBadge}
+                    onChange={(e) => setSettingWelcomeBadge(e.target.value)}
+                    placeholder="Special Welcome"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-[var(--border-light)]">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={handleSaveWelcomeBannerNow}
+                    className="font-bold flex items-center gap-2"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Save Welcome Banner &amp; Offer Now</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Save & Subscribe / Monthly Membership Section */}
+              <div className="p-4 rounded-2xl bg-stone-50 dark:bg-white/5 border border-[var(--border-light)] space-y-4">
+                <h3 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
+                  <Award className="w-4 h-4 text-[#d49a9e]" />
+                  <span>Save &amp; Subscribe Section (Monthly Membership)</span>
+                </h3>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Manage the public membership subscription card, price, benefits, club description, and guarantees.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Input
+                    label="Offer Pill Badge"
+                    value={settingMembershipBadge}
+                    onChange={(e) => setSettingMembershipBadge(e.target.value)}
+                    placeholder="Subscribe & Save"
+                  />
+                  <Input
+                    label="Monthly Price"
+                    value={settingMembershipPrice}
+                    onChange={(e) => setSettingMembershipPrice(e.target.value)}
+                    placeholder="R499"
+                  />
+                  <Input
+                    label="Billing Period"
+                    value={settingMembershipPeriod}
+                    onChange={(e) => setSettingMembershipPeriod(e.target.value)}
+                    placeholder="/ Month"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    label="Card Heading"
+                    value={settingMembershipTitle}
+                    onChange={(e) => setSettingMembershipTitle(e.target.value)}
+                    placeholder="Join Our Monthly Membership"
+                  />
+                  <Input
+                    label="CTA Button Text"
+                    value={settingMembershipBtnText}
+                    onChange={(e) => setSettingMembershipBtnText(e.target.value)}
+                    placeholder="Subscribe & Save Now"
+                  />
+                </div>
+
+                <Input
+                  label="Card Subtitle / Description"
+                  value={settingMembershipDesc}
+                  onChange={(e) => setSettingMembershipDesc(e.target.value)}
+                  placeholder="Invest in your continuous physical and mental wellness..."
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[var(--border-light)]">
+                  <Input
+                    label="Club Name"
+                    value={settingMembershipClub}
+                    onChange={(e) => setSettingMembershipClub(e.target.value)}
+                    placeholder="Lusentic Wellness Club"
+                  />
+                  <Input
+                    label="Active Members Badge"
+                    value={settingMembershipCount}
+                    onChange={(e) => setSettingMembershipCount(e.target.value)}
+                    placeholder="420+ Active Club Members"
+                  />
+                </div>
+
+                <Input
+                  label="Main Section Headline"
+                  value={settingMembershipHeading}
+                  onChange={(e) => setSettingMembershipHeading(e.target.value)}
+                  placeholder="Prioritize Your Health with Consistent Monthly Care"
+                />
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1">
+                    Club Philosophy / Description Paragraph
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={settingMembershipSubtext}
+                    onChange={(e) => setSettingMembershipSubtext(e.target.value)}
+                    placeholder="Describe membership philosophy..."
+                    className="w-full p-2.5 text-xs rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 focus:outline-none focus:border-[#d49a9e]"
+                  />
+                </div>
+
+                {/* Membership Perks Dynamic List */}
+                <div className="pt-2 border-t border-[var(--border-light)] space-y-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Membership Included Perks ({settingMembershipPerks.length})
+                  </label>
+                  
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {settingMembershipPerks.map((perk, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={perk}
+                          onChange={(e) => {
+                            const updated = [...settingMembershipPerks];
+                            updated[idx] = e.target.value;
+                            setSettingMembershipPerks(updated);
+                          }}
+                          className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white focus:outline-none focus:border-[#d49a9e]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSettingMembershipPerks(settingMembershipPerks.filter((_, i) => i !== idx));
+                          }}
+                          className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer"
+                          title="Remove Perk"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add New Perk */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="text"
+                      value={newPerkInput}
+                      onChange={(e) => setNewPerkInput(e.target.value)}
+                      placeholder="e.g. Free Hot Stone or Foot Reflexology add-on with every visit..."
+                      className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 focus:outline-none focus:border-[#d49a9e]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (newPerkInput.trim()) {
+                            setSettingMembershipPerks([...settingMembershipPerks, newPerkInput.trim()]);
+                            setNewPerkInput('');
+                          }
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (newPerkInput.trim()) {
+                          setSettingMembershipPerks([...settingMembershipPerks, newPerkInput.trim()]);
+                          setNewPerkInput('');
+                        }
+                      }}
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Add Perk
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[var(--border-light)]">
+                  <Input
+                    label="Footer Retreat Invitation"
+                    value={settingMembershipFooterNote}
+                    onChange={(e) => setSettingMembershipFooterNote(e.target.value)}
+                    placeholder="Exclusive invitation to quarterly seasonal retreats"
+                  />
+                  <Input
+                    label="Billing Guarantee Note"
+                    value={settingMembershipGuarantee}
+                    onChange={(e) => setSettingMembershipGuarantee(e.target.value)}
+                    placeholder="Secure auto-billing • Easy 1-click pause"
+                  />
+                </div>
               </div>
 
               {/* Social Media Links */}
@@ -1816,7 +2588,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                     label="WhatsApp Direct Link"
                     value={settingWhatsapp}
                     onChange={(e) => setSettingWhatsapp(e.target.value)}
-                    placeholder="https://wa.me/27825550192"
+                    placeholder="https://wa.me/27838154513"
                   />
                 </div>
               </div>
@@ -1827,7 +2599,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                 type="submit"
                 className="font-bold text-xs sm:text-sm shadow-md w-full sm:w-auto"
               >
-                Save Site Branding &amp; Footer Info
+                Save All Branding, Photos, Membership &amp; Contact Info
               </Button>
             </form>
           </div>
@@ -1842,37 +2614,84 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                   Guest Reviews &amp; Testimonials ({testimonials.length})
                 </h1>
                 <p className="text-xs text-[var(--text-muted)]">
-                  Manage client reviews and feedback. Delete inappropriate or outdated guest testimonials.
+                  Add, edit, or remove guest experiences displayed in the public "Words of Serenity" section.
                 </p>
               </div>
+
+              <Button
+                variant="primary"
+                size="md"
+                icon={<Plus className="w-4 h-4" />}
+                onClick={() => {
+                  setEditingTestimonial(null);
+                  setIsTestimonialModalOpen(true);
+                }}
+                className="font-bold text-xs sm:text-sm"
+              >
+                Add Testimonial
+              </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {testimonials.map((test) => (
-                <div key={test.id} className="p-5 rounded-[22px] bg-[var(--bg-card)] border border-[var(--border-light)] shadow-sm flex flex-col justify-between gap-4">
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2.5">
-                        {test.avatar ? (
-                          <img src={test.avatar} alt={test.name} className="w-10 h-10 rounded-full object-cover border border-[#e8b4b8]" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-[#f5edea] dark:bg-[#2d2228] text-[#d49a9e] font-bold flex items-center justify-center text-xs">
-                            {test.name.charAt(0)}
+            {testimonials.length === 0 ? (
+              <div className="text-center py-12 px-4 rounded-[24px] border border-dashed border-[var(--border-light)] bg-stone-50/50 dark:bg-white/5 space-y-3">
+                <MessageSquare className="w-10 h-10 text-[var(--text-muted)] mx-auto opacity-50" />
+                <p className="text-sm font-bold text-[var(--text-primary)]">No Guest Reviews Yet</p>
+                <p className="text-xs text-[var(--text-muted)] max-w-md mx-auto">
+                  Click "Add Testimonial" above to publish authentic reviews or allow verified guests to post their stories.
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<Plus className="w-4 h-4" />}
+                  onClick={() => {
+                    setEditingTestimonial(null);
+                    setIsTestimonialModalOpen(true);
+                  }}
+                  className="font-bold"
+                >
+                  Create First Review
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {testimonials.map((test) => (
+                  <div key={test.id} className="p-5 rounded-[22px] bg-[var(--bg-card)] border border-[var(--border-light)] shadow-sm flex flex-col justify-between gap-4">
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2.5">
+                          {test.avatar ? (
+                            <img src={test.avatar} alt={test.name} className="w-10 h-10 rounded-full object-cover border border-[#e8b4b8]" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-[#f5edea] dark:bg-[#2d2228] text-[#d49a9e] font-bold flex items-center justify-center text-xs">
+                              {test.name.charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <h4 className="font-bold text-sm text-[var(--text-primary)]">{test.name}</h4>
+                            <p className="text-[11px] text-[var(--text-muted)]">{test.treatment} • {test.date}</p>
                           </div>
-                        )}
-                        <div>
-                          <h4 className="font-bold text-sm text-[var(--text-primary)]">{test.name}</h4>
-                          <p className="text-[11px] text-[var(--text-muted)]">{test.treatment} • {test.date}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingTestimonial(test);
+                              setIsTestimonialModalOpen(true);
+                            }}
+                            className="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 rounded-lg cursor-pointer transition-colors"
+                            title="Edit Review"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTestimonial(test.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer transition-colors"
+                            title="Delete Review"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDeleteTestimonial(test.id)}
-                        className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer transition-colors"
-                        title="Delete Review"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
 
                     <div className="flex items-center gap-1 text-[#FFD700] mb-2">
                       {Array.from({ length: 5 }).map((_, i) => (
@@ -1888,8 +2707,345 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                 </div>
               ))}
             </div>
+          )}
           </div>
         )}
+
+        {/* EDIT STAFF MODAL */}
+        {editingStaff && isAdmin && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="w-full max-w-xl bg-[var(--bg-card)] rounded-[28px] border border-[#e8b4b8] p-6 sm:p-8 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-4">
+                <div>
+                  <h3 className="font-serif-luxury text-xl font-bold text-[var(--text-primary)]">
+                    Edit Personnel Account
+                  </h3>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Update staff member credentials, assigned role, phone number, and avatar photo.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditingStaff(null)}
+                  className="p-2 rounded-xl text-[var(--text-muted)] hover:bg-stone-100 dark:hover:bg-white/10 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditStaff} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="First Name *"
+                    value={editStaffFirst}
+                    onChange={(e) => setEditStaffFirst(e.target.value)}
+                    required
+                  />
+                  <Input
+                    label="Last Name"
+                    value={editStaffLast}
+                    onChange={(e) => setEditStaffLast(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Username *"
+                    value={editStaffUsername}
+                    onChange={(e) => setEditStaffUsername(e.target.value)}
+                    required
+                  />
+                  <Input
+                    label="Email Address *"
+                    type="email"
+                    value={editStaffEmail}
+                    onChange={(e) => setEditStaffEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                      System Role *
+                    </label>
+                    <select
+                      value={editStaffRole}
+                      onChange={(e) => setEditStaffRole(e.target.value as 'admin' | 'receptionist')}
+                      className="w-full h-11 px-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white text-xs focus:outline-none focus:border-[#d49a9e]"
+                    >
+                      <option value="receptionist" className="bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white">Receptionist / Front Desk</option>
+                      <option value="admin" className="bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white">Administrator (Full Access)</option>
+                    </select>
+                  </div>
+                  <Input
+                    label="Phone Number"
+                    value={editStaffPhone}
+                    onChange={(e) => setEditStaffPhone(e.target.value)}
+                    placeholder="e.g. +27 82 555 0192"
+                  />
+                </div>
+
+                <Input
+                  label="New Password (Leave blank to keep existing)"
+                  type="password"
+                  value={editStaffPassword}
+                  onChange={(e) => setEditStaffPassword(e.target.value)}
+                  placeholder="Enter new password or leave blank"
+                />
+
+                {/* Avatar */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                    Staff Photo
+                  </label>
+                  <div className="flex items-center gap-4">
+                    {editStaffAvatar && (
+                      <img src={editStaffAvatar} alt="Staff preview" className="w-14 h-14 rounded-full object-cover border border-[#e8b4b8]" />
+                    )}
+                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-100 dark:bg-white/10 hover:bg-stone-200 dark:hover:bg-white/20 border border-[var(--border-light)] text-xs font-bold text-[var(--text-primary)] cursor-pointer">
+                      <Camera className="w-4 h-4 text-[#d49a9e]" />
+                      <span>{editStaffAvatar ? 'Change Photo' : 'Select Photo from Device'}</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setEditStaffAvatar)} className="hidden" />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border-light)]">
+                  <Button variant="outline" size="sm" type="button" onClick={() => setEditingStaff(null)}>
+                    Cancel
+                  </Button>
+                  <Button variant="primary" size="sm" type="submit" className="font-bold">
+                    Save Changes
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT THERAPIST MODAL */}
+        {editingTherapist && isAdmin && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="w-full max-w-xl bg-[var(--bg-card)] rounded-[28px] border border-[#e8b4b8] p-6 sm:p-8 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-4">
+                <div>
+                  <h3 className="font-serif-luxury text-xl font-bold text-[var(--text-primary)]">
+                    Edit Sanctuary Therapist
+                  </h3>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Update therapist name, credentials, specialties, bio, and profile photo.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditingTherapist(null)}
+                  className="p-2 rounded-xl text-[var(--text-muted)] hover:bg-stone-100 dark:hover:bg-white/10 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditTherapist} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Therapist Full Name *"
+                    value={editThName}
+                    onChange={(e) => setEditThName(e.target.value)}
+                    required
+                  />
+                  <Input
+                    label="Title / Specialty Role *"
+                    value={editThRole}
+                    onChange={(e) => setEditThRole(e.target.value)}
+                    required
+                    placeholder="e.g. Master Aromatherapist"
+                  />
+                </div>
+
+                <Input
+                  label="Specialties (Comma Separated)"
+                  value={editThSpecialties}
+                  onChange={(e) => setEditThSpecialties(e.target.value)}
+                  placeholder="e.g. Hot Stone, Deep Tissue, Lymphatic Drainage"
+                />
+
+                {/* Avatar */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                    Therapist Photo
+                  </label>
+                  <div className="flex items-center gap-4">
+                    {editThAvatar && (
+                      <img src={editThAvatar} alt="Therapist preview" className="w-16 h-16 rounded-full object-cover border border-[#e8b4b8]" />
+                    )}
+                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-100 dark:bg-white/10 hover:bg-stone-200 dark:hover:bg-white/20 border border-[var(--border-light)] text-xs font-bold text-[var(--text-primary)] cursor-pointer">
+                      <Camera className="w-4 h-4 text-[#d49a9e]" />
+                      <span>{editThAvatar ? 'Change Photo' : 'Select Photo from Device'}</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setEditThAvatar)} className="hidden" />
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                    Therapist Bio &amp; Philosophy
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editThBio}
+                    onChange={(e) => setEditThBio(e.target.value)}
+                    placeholder="Over 8 years specializing in therapeutic muscle relief and holistic tranquility..."
+                    className="w-full p-3 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#d49a9e] resize-none"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border-light)]">
+                  <Button variant="outline" size="sm" type="button" onClick={() => setEditingTherapist(null)}>
+                    Cancel
+                  </Button>
+                  <Button variant="primary" size="sm" type="submit" className="font-bold">
+                    Save Changes
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT ARTICLE MODAL */}
+        {editingArticle && isAdmin && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="w-full max-w-2xl bg-[var(--bg-card)] rounded-[28px] border border-[#e8b4b8] p-6 sm:p-8 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-[var(--border-light)] pb-4">
+                <div>
+                  <h3 className="font-serif-luxury text-xl font-bold text-[var(--text-primary)]">
+                    Edit Health Corner Article
+                  </h3>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Modify article editorial content, cover image, category, and read time.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditingArticle(null)}
+                  className="p-2 rounded-xl text-[var(--text-muted)] hover:bg-stone-100 dark:hover:bg-white/10 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditArticle} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2">
+                    <Input
+                      label="Article Title *"
+                      value={editArtTitle}
+                      onChange={(e) => setEditArtTitle(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <Input
+                    label="Category"
+                    value={editArtCategory}
+                    onChange={(e) => setEditArtCategory(e.target.value as 'Article' | 'Health Corner')}
+                  />
+                </div>
+
+                {/* Cover Photo */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                    Cover Photo (Select from Device / Storage)
+                  </label>
+                  <div className="flex items-center gap-4">
+                    {editArtImage && (
+                      <img src={editArtImage} alt="Cover preview" className="w-20 h-14 rounded-xl object-cover border border-[#e8b4b8]" />
+                    )}
+                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-100 dark:bg-white/10 hover:bg-stone-200 dark:hover:bg-white/20 border border-[var(--border-light)] text-xs font-bold text-[var(--text-primary)] cursor-pointer">
+                      <Camera className="w-4 h-4 text-[#d49a9e]" />
+                      <span>{editArtImage ? 'Change Cover Photo' : 'Select Photo from Device'}</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setEditArtImage)} className="hidden" />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Short Excerpt / Summary"
+                    value={editArtExcerpt}
+                    onChange={(e) => setEditArtExcerpt(e.target.value)}
+                    placeholder="Brief intro for card preview..."
+                  />
+                  <Input
+                    label="Estimated Read Time"
+                    value={editArtReadTime}
+                    onChange={(e) => setEditArtReadTime(e.target.value)}
+                    placeholder="e.g. 5 min read"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                    Full Article Content *
+                  </label>
+                  <textarea
+                    rows={6}
+                    value={editArtContent}
+                    onChange={(e) => setEditArtContent(e.target.value)}
+                    required
+                    placeholder="Write your wellness editorial paragraphs here..."
+                    className="w-full p-3.5 rounded-xl border border-stone-300 dark:border-white/20 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-xs focus:outline-none focus:border-[#d49a9e] resize-none"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border-light)]">
+                  <Button variant="outline" size="sm" type="button" onClick={() => setEditingArticle(null)}>
+                    Cancel
+                  </Button>
+                  <Button variant="primary" size="sm" type="submit" className="font-bold">
+                    Save Changes
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* GALLERY PHOTO MODAL (SELECT FROM STORAGE / UPLOAD / EDIT) */}
+        <GalleryPhotoModal
+          isOpen={isPhotoModalOpen}
+          onClose={() => {
+            setIsPhotoModalOpen(false);
+            setEditingPhoto(null);
+          }}
+          onSave={handleAddPhotoModalSave}
+          editingPhoto={editingPhoto}
+          onUpdate={handleUpdatePhotoModalSave}
+        />
+
+        {/* TESTIMONIAL MODAL (ADD & EDIT WITH STORAGE/PHOTO UPLOAD) */}
+        <TestimonialModal
+          isOpen={isTestimonialModalOpen}
+          onClose={() => {
+            setIsTestimonialModalOpen(false);
+            setEditingTestimonial(null);
+          }}
+          onSave={handleAddTestimonial}
+          editingTestimonial={editingTestimonial}
+          onUpdate={handleUpdateTestimonial}
+          treatments={treatments}
+        />
+
+        {/* WELCOME PHOTO & BANNER MODAL (HERBAL TEA PHOTO) */}
+        <WelcomePhotoModal
+          isOpen={isWelcomeModalOpen}
+          onClose={() => {
+            setIsWelcomeModalOpen(false);
+            loadData();
+          }}
+          currentSettings={siteSettings}
+          onSaved={() => {
+            loadData();
+            showNotification('Special Welcome herbal tea photo and offer updated & synced to cloud!');
+          }}
+        />
 
       </main>
     </div>

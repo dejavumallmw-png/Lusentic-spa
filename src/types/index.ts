@@ -9,6 +9,7 @@ export interface User {
   role: UserRole;
   phone?: string;
   pin?: string;
+  password?: string;
   profilePhoto?: string;
   avatar?: string;
   loyaltyPoints: number;
@@ -64,6 +65,25 @@ export interface SiteSettings {
     tiktok?: string;
     whatsapp?: string;
   };
+  // Special Welcome / Herbal tea photo & banner
+  welcomePhotoUrl?: string;
+  welcomeBadgeTitle?: string;
+  welcomeTitle?: string;
+  welcomeBadgePill?: string;
+  // Save & Subscribe / Monthly Membership section
+  membershipBadge?: string;
+  membershipTitle?: string;
+  membershipPrice?: string;
+  membershipPeriod?: string;
+  membershipDescription?: string;
+  membershipButtonText?: string;
+  membershipClubTitle?: string;
+  membershipHeading?: string;
+  membershipSubtext?: string;
+  membershipPerks?: string[];
+  membershipMembersCount?: string;
+  membershipFooterNote?: string;
+  membershipGuarantee?: string;
 }
 
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';

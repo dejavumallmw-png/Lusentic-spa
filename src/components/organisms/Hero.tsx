@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Sparkles, Leaf, Award, ShieldCheck, HeartHandshake } from 'lucide-react';
+import { ArrowRight, Sparkles, Leaf, Award, ShieldCheck, HeartHandshake, Gift, Edit3, Camera } from 'lucide-react';
 import { Button } from '../atoms/Button';
 import { SparkleEmblem } from '../atoms/SparkleEmblem';
 import { SiteSettings } from '../../types';
 import { settingsService } from '../../services/settingsService';
+import { useAuth } from '../../app/providers/AuthProvider';
+import { WelcomePhotoModal } from './WelcomePhotoModal';
 
 interface HeroProps {
   onOpenBooking: () => void;
@@ -16,7 +18,10 @@ export const Hero: React.FC<HeroProps> = ({
   onExploreServices,
   onOpenVoucher,
 }) => {
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(settingsService.getSettings());
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
 
   useEffect(() => {
     const unsub = settingsService.subscribe((updated) => {
@@ -87,6 +92,18 @@ export const Hero: React.FC<HeroProps> = ({
             >
               Explore Services
             </Button>
+
+            {onOpenVoucher && (
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={onOpenVoucher}
+                icon={<Gift className="w-4 h-4 text-[#b57377] dark:text-[#e8b4b8]" />}
+                className="border-[#b57377] dark:border-[#e8b4b8]/60 text-stone-900 dark:text-white hover:bg-[#e8b4b8]/10 hover:border-[#b57377] px-7 py-3.5 font-bold text-sm sm:text-base shadow-sm"
+              >
+                Gift a Voucher
+              </Button>
+            )}
           </div>
         </div>
 
@@ -94,21 +111,52 @@ export const Hero: React.FC<HeroProps> = ({
         <div className="relative mx-auto max-w-4xl">
           <div className="relative h-[320px] sm:h-[420px] md:h-[480px] rounded-[32px] overflow-hidden shadow-2xl border-4 border-white/60 dark:border-white/10 group">
             <img
-              src="https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1400&q=80"
-              alt="Luxury Spa Massage and Frangipani Ambiance"
+              src={siteSettings.welcomePhotoUrl || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1400&q=80'}
+              alt="Luxury Spa Special Welcome Ambiance"
               className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+
+            {/* Admin quick edit button */}
+            {isAdmin && (
+              <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsWelcomeModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/80 hover:bg-black text-[#e8b4b8] hover:text-white border border-[#e8b4b8]/40 shadow-lg text-xs font-bold transition-all cursor-pointer"
+                  title="Edit or change Special Welcome herbal tea photo"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Edit Welcome Photo</span>
+                </button>
+              </div>
+            )}
             
             {/* Floating Glass Pill on the image */}
             <div className="absolute bottom-5 left-5 right-5 p-4 rounded-2xl bg-black/80 dark:bg-[#1a1418]/90 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div>
-                <p className="text-xs uppercase font-extrabold tracking-wider text-[#e8b4b8] dark:text-[#d49a9e]">Special Welcome</p>
-                <p className="text-sm font-extrabold text-white">Complimentary Herbal Tea &amp; Foot Soak with Every Session</p>
+                <p className="text-xs uppercase font-extrabold tracking-wider text-[#e8b4b8] dark:text-[#d49a9e]">
+                  {siteSettings.welcomeBadgeTitle || 'Special Welcome'}
+                </p>
+                <p className="text-sm font-extrabold text-white">
+                  {siteSettings.welcomeTitle || 'Complimentary Herbal Tea & Foot Soak with Every Session'}
+                </p>
               </div>
-              <span className="px-3.5 py-1 rounded-full bg-[#e8b4b8] text-[#1a1418] text-xs font-bold whitespace-nowrap">
-                All Guests
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="px-3.5 py-1 rounded-full bg-[#e8b4b8] text-[#1a1418] text-xs font-bold whitespace-nowrap">
+                  {siteSettings.welcomeBadgePill || 'All Guests'}
+                </span>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setIsWelcomeModalOpen(true)}
+                    className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors cursor-pointer"
+                    title="Edit welcome text and photo"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -123,6 +171,13 @@ export const Hero: React.FC<HeroProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Welcome Photo & Text Admin Modal */}
+        <WelcomePhotoModal
+          isOpen={isWelcomeModalOpen}
+          onClose={() => setIsWelcomeModalOpen(false)}
+          currentSettings={siteSettings}
+        />
 
         {/* 4 Feature Badges (Natural Products, Expert Therapists, Hygiene & Care, Pure Environment) */}
         <div className="mt-14 sm:mt-16 pt-8 border-t border-[var(--border-light)] grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">

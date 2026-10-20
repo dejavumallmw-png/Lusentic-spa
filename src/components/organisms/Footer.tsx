@@ -18,11 +18,10 @@ import { settingsService } from '../../services/settingsService';
 interface FooterProps {
   onOpenBooking: () => void;
   onOpenVoucher: () => void;
-  onOpenAdmin?: () => void;
   onSelectCategory?: (category: string) => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher, onOpenAdmin }) => {
+export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) => {
   const [settings, setSettings] = useState(settingsService.getSettings());
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterSuccess, setNewsletterSuccess] = useState(false);
@@ -143,13 +142,24 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher, on
             {/* Social Icons */}
             <div className="flex items-center gap-3.5 mt-6">
               <a
-                href={settings.socials?.whatsapp || 'https://wa.me/27825550192'}
+                href={settings.socials?.whatsapp || (settings.whatsappNumber ? `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}` : 'https://wa.me/27838154513')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#25D366] text-white flex items-center justify-center transition-all hover:-translate-y-1 shadow-sm"
-                title="WhatsApp"
+                title="WhatsApp Concierge"
               >
                 <MessageSquare className="w-4 h-4" />
+              </a>
+              <a
+                href={settings.socials?.tiktok || (settings.tiktok || 'https://tiktok.com/@lusenticspa')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-black hover:text-[#25F4EE] hover:border-[#25F4EE]/40 border border-transparent text-white flex items-center justify-center transition-all hover:-translate-y-1 shadow-sm"
+                title="TikTok Sanctuary Channel"
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.04-.1z" />
+                </svg>
               </a>
               <a
                 href={settings.socials?.instagram || 'https://instagram.com'}
@@ -299,16 +309,6 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher, on
             <span className="hover:text-white cursor-pointer">Privacy Policy</span>
             <span className="hover:text-white cursor-pointer">Terms &amp; Etiquette</span>
             <span className="hover:text-white cursor-pointer">Cancellation Policy</span>
-            {onOpenAdmin && (
-              <button
-                onClick={onOpenAdmin}
-                className="hover:text-[#e8b4b8] text-white/70 flex items-center gap-1.5 cursor-pointer font-medium transition-colors"
-                title="Open Super Admin Panel"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-[#e8b4b8]" />
-                <span>Admin Sanctuary Portal</span>
-              </button>
-            )}
           </div>
         </div>
 

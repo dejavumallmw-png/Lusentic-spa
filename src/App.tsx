@@ -19,6 +19,7 @@ import { Footer } from './components/organisms/Footer';
 // Dashboard Views
 import { ClientDashboard } from './components/organisms/ClientDashboard';
 import { AdminDashboard } from './components/organisms/AdminDashboard';
+import { AdminLogin } from './components/organisms/AdminLogin';
 
 // Floating & Modals
 import { FloatingCart } from './components/organisms/FloatingCart';
@@ -27,6 +28,7 @@ import { BookingModal } from './components/organisms/BookingModal';
 import { SuccessModal } from './components/organisms/SuccessModal';
 import { SearchModal } from './components/organisms/SearchModal';
 import { GiftVoucherModal } from './components/organisms/GiftVoucherModal';
+import { testConnection } from './services/firebase';
 import { AuthModal } from './components/organisms/AuthModal';
 
 import { Treatment, Therapist, Booking, BookingFormData } from './types';
@@ -46,6 +48,11 @@ const MainAppContent: React.FC = () => {
   const [isVoucherOpen, setIsVoucherOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
+
+  // Test Firebase Firestore connection on boot
+  useEffect(() => {
+    testConnection();
+  }, []);
 
   // Pre-selected for booking
   const [selectedTreatment, setSelectedTreatment] = useState<Treatment | null>(null);
@@ -77,11 +84,7 @@ const MainAppContent: React.FC = () => {
         hash === '#staff' ||
         hash === '#/staff';
 
-      if (isAdmin) {
-        switchRole('admin');
-        setActiveView('admin-dashboard');
-      } else if (isStaff) {
-        switchRole('receptionist');
+      if (isAdmin || isStaff) {
         setActiveView('admin-dashboard');
       }
     };
@@ -95,7 +98,7 @@ const MainAppContent: React.FC = () => {
       window.removeEventListener('popstate', handleUrlRoute);
       window.removeEventListener('hashchange', handleUrlRoute);
     };
-  }, [switchRole]);
+  }, []);
 
   const handleBackToHome = () => {
     setActiveView('home');
@@ -171,9 +174,18 @@ const MainAppContent: React.FC = () => {
           onBookNewSession={() => handleOpenBooking()}
         />
       ) : activeView === 'admin-dashboard' ? (
-        <AdminDashboard
-          onBackToHome={handleBackToHome}
-        />
+        role === 'admin' || role === 'receptionist' ? (
+          <AdminDashboard
+            onBackToHome={handleBackToHome}
+          />
+        ) : (
+          <AdminLogin
+            onSuccess={() => {
+              showToast('Signed in to Sanctuary Management Portal');
+            }}
+            onBackToHome={handleBackToHome}
+          />
+        )
       ) : (
         /* Home View */
         <>
@@ -217,6 +229,7 @@ const MainAppContent: React.FC = () => {
               onJoinMembership={() => {
                 showToast('Welcome to Lusentic Wellness Club! Priority credits added.');
               }}
+              onOpenAdminSettings={() => setActiveView('admin-dashboard')}
             />
 
             {/* Call to Action Banner (Photo 2 Bottom Banner) */}
@@ -233,26 +246,18 @@ const MainAppContent: React.FC = () => {
             />
 
             {/* Guest Testimonials */}
-            <TestimonialsSection />
+            <TestimonialsSection
+              onOpenAdminTestimonials={() => setActiveView('admin-dashboard')}
+            />
 
             {/* Articles & Health Corner */}
             <ArticlesSection />
           </main>
 
-          {/* Footer (Photo 2 & PDF spec with Newsletter, 4 Columns, Inquiry Form) */}
+          {/* Footer */}
           <Footer
             onOpenBooking={() => handleOpenBooking()}
             onOpenVoucher={() => setIsVoucherOpen(true)}
-            onOpenAdmin={() => {
-              switchRole('admin');
-              setActiveView('admin-dashboard');
-              try {
-                window.history.pushState(null, '', '?admin=true');
-              } catch {
-                // ignore
-              }
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
           />
 
           {/* Floating Cart Button (PDF spec: bottom-right circular button) */}

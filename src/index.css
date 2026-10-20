@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
 @layer base {
   :root {
     --dust-pink-500: #e8b4b8;
@@ -25,7 +27,7 @@
     --bg-surface: #ffffff;
     --border-light: #dfd4d0;
     --text-primary: #191216;
-    --text-muted: #4e4449;
+    --text-muted: #574e53;
     --shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
     --shadow-hover: 0 16px 50px rgba(212, 154, 158, 0.25);
   }
@@ -54,20 +56,80 @@
     font-family: 'Cormorant Garamond', Georgia, serif;
   }
 
-  /* Form controls contrast guarantees */
-  input, textarea, select {
-    color: var(--text-primary);
+  /* Form controls contrast guarantees across Light & Dark themes */
+  :root:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  :root:not(.dark) textarea,
+  :root:not(.dark) select,
+  [data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  [data-theme="light"] textarea,
+  [data-theme="light"] select {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border-color: #d1d5db !important;
+    color-scheme: light !important;
   }
 
-  input::placeholder, textarea::placeholder {
-    color: #78716c;
+  :root:not(.dark) input::placeholder,
+  :root:not(.dark) textarea::placeholder,
+  [data-theme="light"] input::placeholder,
+  [data-theme="light"] textarea::placeholder {
+    color: #6b7280 !important;
   }
 
-  [data-theme="dark"] input::placeholder,
-  [data-theme="dark"] textarea::placeholder,
+  /* Dark mode form overrides */
+  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .dark textarea,
+  .dark select,
+  [data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  [data-theme="dark"] textarea,
+  [data-theme="dark"] select {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+    color-scheme: dark !important;
+  }
+
   .dark input::placeholder,
-  .dark textarea::placeholder {
-    color: rgba(255, 255, 255, 0.45);
+  .dark textarea::placeholder,
+  [data-theme="dark"] input::placeholder,
+  [data-theme="dark"] textarea::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
+  }
+
+  /* Browser autofill fix so credentials/forms don't get mismatched colors */
+  :root:not(.dark) input:-webkit-autofill,
+  :root:not(.dark) input:-webkit-autofill:hover, 
+  :root:not(.dark) input:-webkit-autofill:focus, 
+  :root:not(.dark) textarea:-webkit-autofill,
+  :root:not(.dark) textarea:-webkit-autofill:hover,
+  :root:not(.dark) textarea:-webkit-autofill:focus,
+  :root:not(.dark) select:-webkit-autofill,
+  :root:not(.dark) select:-webkit-autofill:hover,
+  :root:not(.dark) select:-webkit-autofill:focus,
+  [data-theme="light"] input:-webkit-autofill,
+  [data-theme="light"] input:-webkit-autofill:hover, 
+  [data-theme="light"] input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #111827 !important;
+    -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover, 
+  .dark input:-webkit-autofill:focus,
+  [data-theme="dark"] input:-webkit-autofill,
+  [data-theme="dark"] input:-webkit-autofill:hover,
+  [data-theme="dark"] input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #ffffff !important;
+    -webkit-box-shadow: 0 0 0px 1000px #1e1e1e inset !important;
+  }
+
+  label {
+    color: #1f2937;
+  }
+  .dark label,
+  [data-theme="dark"] label {
+    color: #f3f4f6;
   }
 }
 

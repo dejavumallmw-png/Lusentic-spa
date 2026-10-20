@@ -38,7 +38,7 @@ export const Input: React.FC<InputProps> = ({
         )}
         <input
           className={clsx(
-            'w-full h-[44px] px-4 rounded-[16px] border border-stone-300 dark:border-white/15 bg-white dark:bg-[#1a1418] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-sm transition-all outline-none',
+            'w-full h-[44px] px-4 rounded-[16px] border border-stone-300 dark:border-white/15 bg-white dark:bg-[#1e1e1e] text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder-white/40 text-sm transition-all outline-none',
             'focus:border-[#b57377] dark:focus:border-[#e8b4b8] focus:ring-2 focus:ring-[#e8b4b8]/20',
             icon && iconPosition === 'left' && 'pl-10',
             icon && iconPosition === 'right' && 'pr-10',

@@ -42,11 +42,9 @@ export const GiftVoucherModal: React.FC<GiftVoucherModalProps> = ({
         setSelectedTreatment(tList[0].name);
         setTreatmentPrice(tList[0].price);
       }
-      if (settings?.phone) {
-        // clean phone digits for WhatsApp
-        const digits = settings.phone.replace(/[^0-9]/g, '');
-        if (digits) setBusinessPhone(digits);
-      }
+      const phoneSource = settings?.whatsappNumber || settings?.phone || '27838154513';
+      const digits = phoneSource.replace(/[^0-9]/g, '');
+      if (digits) setBusinessPhone(digits);
     };
     load();
 

@@ -55,6 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { label: 'Special Offer', href: '#special-offer', onClick: () => setActiveView('home') },
     { label: 'Gallery', href: '#gallery', onClick: () => setActiveView('home') },
     { label: 'Therapists', href: '#team', onClick: () => setActiveView('home') },
+    { label: 'Directions', href: '#location', onClick: () => setActiveView('home') },
     { label: 'Health Corner', href: '#articles', onClick: () => setActiveView('home') },
     { label: 'Contact', href: '#contact', onClick: () => setActiveView('home') },
   ];

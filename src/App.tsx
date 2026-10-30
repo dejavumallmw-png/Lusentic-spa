@@ -14,7 +14,10 @@ import { GallerySection } from './components/organisms/GallerySection';
 import { TeamSection } from './components/organisms/TeamSection';
 import { TestimonialsSection } from './components/organisms/TestimonialsSection';
 import { ArticlesSection } from './components/organisms/ArticlesSection';
+import { LocationDirectionsSection } from './components/organisms/LocationDirectionsSection';
 import { Footer } from './components/organisms/Footer';
+import { settingsService } from './services/settingsService';
+import { SiteSettings } from './types';
 
 // Dashboard Views
 import { ClientDashboard } from './components/organisms/ClientDashboard';
@@ -48,6 +51,41 @@ const MainAppContent: React.FC = () => {
   const [isVoucherOpen, setIsVoucherOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
+
+  // Live Site Branding & Settings (including coordinates & logo)
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(settingsService.getSettings());
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
+
+  useEffect(() => {
+    const unsub = settingsService.subscribe((updated) => {
+      setSiteSettings(updated);
+    });
+    return () => unsub();
+  }, []);
+
+  // Google Maps Platform Quota Exceeded event listener (Case A Quota Defense)
+  useEffect(() => {
+    const handleQuotaExceeded = () => {
+      setIsQuotaExceeded(true);
+    };
+    window.addEventListener('gmp-quota-exceeded', handleQuotaExceeded);
+    return () => window.removeEventListener('gmp-quota-exceeded', handleQuotaExceeded);
+  }, []);
+
+  // Dynamically ensure OpenGraph image and favicon absolute URLs match the active origin for WhatsApp sharing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin;
+      const ogImage = document.querySelector('meta[property="og:image"]');
+      if (ogImage) ogImage.setAttribute('content', `${origin}/og-image.jpg`);
+      const ogSecure = document.querySelector('meta[property="og:image:secure_url"]');
+      if (ogSecure) ogSecure.setAttribute('content', `${origin}/og-image.jpg`);
+      const twImage = document.querySelector('meta[name="twitter:image"]');
+      if (twImage) twImage.setAttribute('content', `${origin}/og-image.jpg`);
+      const ogUrl = document.querySelector('meta[property="og:url"]');
+      if (ogUrl) ogUrl.setAttribute('content', origin);
+    }
+  }, []);
 
   // Test Firebase Firestore connection on boot
   useEffect(() => {
@@ -159,6 +197,24 @@ const MainAppContent: React.FC = () => {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] relative selection:bg-[#e8b4b8] selection:text-[#1a1418]">
       
+      {/* Google Maps Platform Quota Defense Banner (Case A) */}
+      {isQuotaExceeded && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm">
+          <span>
+            Google Maps Platform quota reached. If you are the app owner, visit{' '}
+            <a
+              href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-amber-950 hover:text-amber-800"
+            >
+              maps developer site
+            </a>{' '}
+            for instructions to update your account.
+          </span>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[10002] bg-[#1a1418] text-white px-5 py-2.5 rounded-full shadow-2xl border border-[#e8b4b8] text-xs font-semibold flex items-center gap-2 animate-in slide-in-from-top duration-300">
@@ -249,6 +305,9 @@ const MainAppContent: React.FC = () => {
             <TestimonialsSection
               onOpenAdminTestimonials={() => setActiveView('admin-dashboard')}
             />
+
+            {/* Sanctuary Location & Google Maps Directions (Coordinates: 26.170776, 26.166044) */}
+            <LocationDirectionsSection settings={siteSettings} />
 
             {/* Articles & Health Corner */}
             <ArticlesSection />

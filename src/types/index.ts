@@ -84,6 +84,12 @@ export interface SiteSettings {
   membershipMembersCount?: string;
   membershipFooterNote?: string;
   membershipGuarantee?: string;
+  // Sanctuary Location Coordinates for Google Maps Directions
+  coordinatesString?: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
 }
 
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';

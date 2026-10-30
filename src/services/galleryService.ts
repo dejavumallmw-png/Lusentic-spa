@@ -11,15 +11,17 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 
-const STORAGE_KEY = 'lusentic_gallery';
-const INIT_KEY = 'lusentic_gallery_has_initialized';
 const COLLECTION_NAME = 'gallery';
 
-// In-memory subscribers for real-time reactivity across components
+// In-memory runtime state and subscribers synced directly with Firebase Firestore (zero localStorage)
 type GalleryListener = (items: GalleryItem[]) => void;
 const listeners = new Set<GalleryListener>();
+let memoryGallery: GalleryItem[] = [...INITIAL_GALLERY];
+let isSeedingGallery = false;
+let hasExplicitlyCleared = false;
 
 function notifyListeners(items: GalleryItem[]): void {
+  memoryGallery = items;
   listeners.forEach((listener) => {
     try {
       listener(items);
@@ -29,69 +31,51 @@ function notifyListeners(items: GalleryItem[]): void {
   });
 }
 
-function getStoredGallery(): GalleryItem[] {
-  try {
-    const hasInit = localStorage.getItem(INIT_KEY);
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null && hasInit) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        return parsed;
+function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
+  const result: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+        result[key] = sanitizeForFirestore(val);
+      } else {
+        result[key] = val;
       }
     }
-  } catch (e) {
-    console.warn('Failed to load gallery from storage', e);
   }
-
-  // First time only: initialize with defaults
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_GALLERY));
-    localStorage.setItem(INIT_KEY, 'true');
-  } catch {
-    // ignore
-  }
-  return INITIAL_GALLERY;
-}
-
-function saveGallery(items: GalleryItem[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    localStorage.setItem(INIT_KEY, 'true');
-  } catch (e) {
-    console.warn('Failed to save gallery locally:', e);
-  }
-  notifyListeners(items);
+  return result;
 }
 
 export const galleryService = {
   /**
-   * Subscribe to real-time changes from Firestore and local mutations
+   * Subscribe to real-time changes from Firebase Firestore
    */
   subscribe: (callback: GalleryListener): (() => void) => {
     listeners.add(callback);
-    // Provide current state immediately
-    callback(getStoredGallery());
+    callback(memoryGallery);
 
     let firestoreUnsub: Unsubscribe | null = null;
     try {
       firestoreUnsub = onSnapshot(
         collection(db, COLLECTION_NAME),
         (snapshot) => {
-          const cloudList: GalleryItem[] = [];
-          snapshot.forEach((d) => {
-            cloudList.push(d.data() as GalleryItem);
-          });
-          cloudList.sort((a, b) => b.id - a.id);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudList));
-            localStorage.setItem(INIT_KEY, 'true');
-          } catch {
-            // ignore
+          if (!snapshot.empty) {
+            const cloudList: GalleryItem[] = [];
+            snapshot.forEach((d) => {
+              cloudList.push(d.data() as GalleryItem);
+            });
+            cloudList.sort((a, b) => b.id - a.id);
+            memoryGallery = cloudList;
+            callback(cloudList);
+          } else if (hasExplicitlyCleared) {
+            memoryGallery = [];
+            callback([]);
+          } else {
+            galleryService.getAll().then((seeded) => callback(seeded));
           }
-          callback(cloudList);
         },
         (error) => {
-          console.warn('Firestore gallery snapshot listener warning (using local fallback):', error.message);
+          console.warn('Firestore gallery snapshot listener warning:', error.message);
         }
       );
     } catch (e) {
@@ -119,49 +103,46 @@ export const galleryService = {
           cloudList.push(d.data() as GalleryItem);
         });
         cloudList.sort((a, b) => b.id - a.id);
-        saveGallery(cloudList);
+        notifyListeners(cloudList);
         return cloudList;
       } else {
-        const hasInit = localStorage.getItem(INIT_KEY);
-        // If it was explicitly cleared, return empty
-        if (hasInit) {
-          return getStoredGallery();
+        if (hasExplicitlyCleared) {
+          return [];
         }
-        // First time initialization in Firestore
-        const initial = getStoredGallery();
-        for (const item of initial) {
-          try {
-            await setDoc(doc(db, COLLECTION_NAME, String(item.id)), item);
-          } catch {
-            // non-blocking seed
+        if (!isSeedingGallery) {
+          isSeedingGallery = true;
+          for (const item of INITIAL_GALLERY) {
+            try {
+              await setDoc(doc(db, COLLECTION_NAME, String(item.id)), sanitizeForFirestore(item));
+            } catch (err) {
+              console.warn('Could not seed gallery item to Firestore:', item.title, err);
+            }
           }
+          notifyListeners([...INITIAL_GALLERY]);
+          return memoryGallery;
         }
-        return initial;
       }
     } catch (error) {
-      console.warn('Firestore getAll gallery error, falling back to local cache:', error);
+      console.error('Firestore getAll gallery error:', error);
     }
-    return getStoredGallery();
+    return memoryGallery;
   },
 
   addPhoto: async (photo: Omit<GalleryItem, 'id'>): Promise<GalleryItem> => {
+    hasExplicitlyCleared = false;
     const all = await galleryService.getAll();
     const newId = Date.now();
-    const newPhoto: GalleryItem = {
+    const newPhoto: GalleryItem = sanitizeForFirestore({
       ...photo,
       id: newId,
-    };
+    });
     const updated = [newPhoto, ...all];
-    saveGallery(updated);
+    notifyListeners(updated);
 
     try {
       await setDoc(doc(db, COLLECTION_NAME, String(newId)), newPhoto);
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${newId}`);
-      } catch {
-        console.warn('Saved photo locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${newId}`);
     }
 
     return newPhoto;
@@ -172,18 +153,15 @@ export const galleryService = {
     const idx = all.findIndex((p) => p.id === id);
     if (idx === -1) return null;
 
-    const merged = { ...all[idx], ...updates };
-    all[idx] = merged;
-    saveGallery(all);
+    const merged = sanitizeForFirestore({ ...all[idx], ...updates });
+    const nextList = [...all];
+    nextList[idx] = merged;
+    notifyListeners(nextList);
 
     try {
       await setDoc(doc(db, COLLECTION_NAME, String(id)), merged, { merge: true });
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${id}`);
-      } catch {
-        console.warn('Updated photo locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${id}`);
     }
 
     return merged;
@@ -192,22 +170,22 @@ export const galleryService = {
   deletePhoto: async (id: number): Promise<void> => {
     const all = await galleryService.getAll();
     const updated = all.filter((p) => p.id !== id);
-    saveGallery(updated);
+    if (updated.length === 0) {
+      hasExplicitlyCleared = true;
+    }
+    notifyListeners(updated);
 
     try {
       await deleteDoc(doc(db, COLLECTION_NAME, String(id)));
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${id}`);
-      } catch {
-        console.warn('Deleted photo locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${id}`);
     }
   },
 
   clearAllPhotos: async (): Promise<void> => {
+    hasExplicitlyCleared = true;
     const all = await galleryService.getAll();
-    saveGallery([]);
+    notifyListeners([]);
 
     for (const item of all) {
       try {
@@ -219,13 +197,14 @@ export const galleryService = {
   },
 
   /**
-   * Reset gallery to default initial sanctuary collection
+   * Reset gallery to default initial sanctuary collection in Firestore
    */
   resetToDefault: async (): Promise<GalleryItem[]> => {
-    saveGallery(INITIAL_GALLERY);
+    hasExplicitlyCleared = false;
+    notifyListeners([...INITIAL_GALLERY]);
     for (const item of INITIAL_GALLERY) {
       try {
-        await setDoc(doc(db, COLLECTION_NAME, String(item.id)), item);
+        await setDoc(doc(db, COLLECTION_NAME, String(item.id)), sanitizeForFirestore(item));
       } catch {
         // ignore
       }

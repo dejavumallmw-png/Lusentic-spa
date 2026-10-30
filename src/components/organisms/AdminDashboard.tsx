@@ -187,6 +187,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   const [settingWhatsappNumber, setSettingWhatsappNumber] = useState(siteSettings.whatsappNumber || '+27 83 815 4513');
   const [settingEmail, setSettingEmail] = useState(siteSettings.email);
   const [settingAddress, setSettingAddress] = useState(siteSettings.address);
+  const [settingCoordinates, setSettingCoordinates] = useState(siteSettings.coordinatesString || '26.170776, 26.166044');
   const [settingHours, setSettingHours] = useState(siteSettings.operatingHours);
   const [settingInstagram, setSettingInstagram] = useState(siteSettings.socials?.instagram || '');
   const [settingFacebook, setSettingFacebook] = useState(siteSettings.socials?.facebook || '');
@@ -259,6 +260,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
       setSettingWhatsappNumber(settings.whatsappNumber || '+27 83 815 4513');
       setSettingEmail(settings.email || '');
       setSettingAddress(settings.address || '');
+      setSettingCoordinates(settings.coordinatesString || '26.170776, 26.166044');
       setSettingHours(settings.operatingHours || '');
       setSettingInstagram(settings.socials?.instagram || '');
       setSettingFacebook(settings.socials?.facebook || '');
@@ -730,6 +732,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     try {
       const finalWhatsAppUrl = settingWhatsapp.trim() || getCleanWhatsAppUrl(settingWhatsappNumber);
 
+      const coordParts = settingCoordinates.split(',').map((p) => parseFloat(p.trim()));
+      const parsedLat = !isNaN(coordParts[0]) ? coordParts[0] : 26.170776;
+      const parsedLng = coordParts.length > 1 && !isNaN(coordParts[1]) ? coordParts[1] : 26.166044;
+
       await settingsService.updateSettings({
         brandName: settingBrandName.trim() || 'Lusentic',
         brandSuffix: settingBrandSuffix.trim() || 'Spa',
@@ -738,6 +744,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         whatsappNumber: settingWhatsappNumber.trim() || '+27 83 815 4513',
         email: settingEmail.trim(),
         address: settingAddress.trim(),
+        coordinatesString: settingCoordinates.trim() || '26.170776, 26.166044',
+        coordinates: {
+          lat: parsedLat,
+          lng: parsedLng,
+        },
         operatingHours: (settingHours || '').trim(),
         socials: {
           instagram: settingInstagram.trim(),
@@ -2251,12 +2262,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                   />
                 </div>
 
-                <Input
-                  label="Physical Address / Sanctuary Location"
-                  value={settingAddress}
-                  onChange={(e) => setSettingAddress(e.target.value)}
-                  placeholder="128 Rosebank Boulevard, Sanctuary Quarter, Johannesburg, 2196"
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Physical Address / Sanctuary Location"
+                    value={settingAddress}
+                    onChange={(e) => setSettingAddress(e.target.value)}
+                    placeholder="128 Rosebank Boulevard, Sanctuary Quarter, Johannesburg, 2196"
+                  />
+                  <Input
+                    label="Google Maps GPS Coordinates (Latitude, Longitude)"
+                    value={settingCoordinates}
+                    onChange={(e) => setSettingCoordinates(e.target.value)}
+                    placeholder="26.170776, 26.166044"
+                  />
+                </div>
 
                 <Input
                   label="Operating Hours"

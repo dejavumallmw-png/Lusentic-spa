@@ -11,30 +11,11 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 
-const STORAGE_KEY = 'lusentic_spa_categories_v2';
 const COLLECTION_NAME = 'categories';
 
-function getStoredCategories(): CategoryInfo[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_CATEGORIES));
-      return INITIAL_CATEGORIES;
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_CATEGORIES;
-  } catch {
-    return INITIAL_CATEGORIES;
-  }
-}
-
-function saveCategories(categories: CategoryInfo[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
-  } catch (e) {
-    console.warn('Failed to save categories locally:', e);
-  }
-}
+// In-memory runtime state synced directly with Firebase Firestore (zero localStorage)
+let memoryCategories: CategoryInfo[] = [...INITIAL_CATEGORIES];
+let isSeedingCategories = false;
 
 export const categoryService = {
   async getAll(): Promise<CategoryInfo[]> {
@@ -45,24 +26,24 @@ export const categoryService = {
         snap.forEach((d) => {
           list.push(d.data() as CategoryInfo);
         });
-        saveCategories(list);
+        memoryCategories = list;
         return list;
-      } else {
-        // Seed initial categories so they are in Firestore
-        const defaults = getStoredCategories();
-        for (const cat of defaults) {
+      } else if (!isSeedingCategories) {
+        isSeedingCategories = true;
+        for (const cat of INITIAL_CATEGORIES) {
           try {
             await setDoc(doc(db, COLLECTION_NAME, cat.slug), cat);
-          } catch {
-            // non-blocking
+          } catch (err) {
+            console.warn('Could not seed category to Firestore:', cat.slug, err);
           }
         }
-        return defaults;
+        memoryCategories = [...INITIAL_CATEGORIES];
+        return memoryCategories;
       }
     } catch (error) {
-      console.warn('Firestore getAll categories error, falling back to local cache:', error);
+      console.error('Firestore getAll categories error:', error);
     }
-    return getStoredCategories();
+    return memoryCategories;
   },
 
   async addCategory(data: { label: string; description?: string; iconName?: string }): Promise<CategoryInfo> {
@@ -80,17 +61,12 @@ export const categoryService = {
       iconName: data.iconName || 'Sparkles',
     };
 
-    const updated = [...list, newCat];
-    saveCategories(updated);
+    memoryCategories = [...list, newCat];
 
     try {
       await setDoc(doc(db, COLLECTION_NAME, slug), newCat);
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${slug}`);
-      } catch {
-        console.warn('Saved category locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${slug}`);
     }
 
     return newCat;
@@ -103,26 +79,21 @@ export const categoryService = {
     );
     const targetSlug = catToDelete ? catToDelete.slug : slugOrLabel;
 
-    const filtered = list.filter(
+    memoryCategories = list.filter(
       (c) => c.slug !== targetSlug && c.label.toLowerCase() !== slugOrLabel.toLowerCase()
     );
-    saveCategories(filtered);
 
     try {
       await deleteDoc(doc(db, COLLECTION_NAME, targetSlug));
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${targetSlug}`);
-      } catch {
-        console.warn('Deleted category locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${targetSlug}`);
     }
 
     return true;
   },
 
   subscribe(callback: (categories: CategoryInfo[]) => void): () => void {
-    callback(getStoredCategories());
+    callback(memoryCategories);
     let unsub: Unsubscribe | null = null;
     try {
       unsub = onSnapshot(
@@ -133,8 +104,10 @@ export const categoryService = {
             snapshot.forEach((d) => {
               list.push(d.data() as CategoryInfo);
             });
-            saveCategories(list);
+            memoryCategories = list;
             callback(list);
+          } else {
+            this.getAll().then((seeded) => callback(seeded));
           }
         },
         (err) => {

@@ -10,7 +10,8 @@ import {
   Facebook,
   MessageSquare,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  Navigation
 } from 'lucide-react';
 import { Button } from '../atoms/Button';
 import { settingsService } from '../../services/settingsService';
@@ -122,7 +123,20 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) 
               <div className="space-y-3 text-xs text-white/80">
                 <div className="flex items-start gap-3">
                   <MapPin className="w-4 h-4 text-[#e8b4b8] shrink-0 mt-0.5" />
-                  <span>{settings.address}</span>
+                  <div>
+                    <span>{settings.address}</span>
+                    <div className="mt-1">
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${settings.coordinates?.lat || 26.170776},${settings.coordinates?.lng || 26.166044}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[11px] text-[#e8b4b8] hover:text-white font-semibold transition-colors"
+                      >
+                        <Navigation className="w-3 h-3 text-[#e8b4b8]" />
+                        <span>Google Maps Directions (26.170776, 26.166044)</span>
+                      </a>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone className="w-4 h-4 text-[#e8b4b8] shrink-0" />
@@ -209,6 +223,9 @@ export const Footer: React.FC<FooterProps> = ({ onOpenBooking, onOpenVoucher }) 
               </li>
               <li>
                 <a href="#team" className="hover:text-[#e8b4b8] transition-colors">Our Therapists</a>
+              </li>
+              <li>
+                <a href="#location" className="hover:text-[#e8b4b8] transition-colors">Map &amp; Directions</a>
               </li>
               <li>
                 <a href="#articles" className="hover:text-[#e8b4b8] transition-colors">Health Corner</a>

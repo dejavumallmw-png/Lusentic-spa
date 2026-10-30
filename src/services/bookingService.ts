@@ -1,11 +1,14 @@
 import { Booking, BookingFormData, BookingStatus } from '../types';
 import { treatmentService } from './treatmentService';
 import { therapistService } from './therapistService';
+import { authService } from './authService';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
-const BOOKINGS_KEY = 'lusentic_spa_dynamic_bookings_v1';
 const COLLECTION_NAME = 'bookings';
+
+// In-memory runtime state synced directly with Firebase Firestore (zero localStorage)
+let memoryBookings: Booking[] = [];
 
 export function generateBookingId(dateStr?: string, timeStr?: string): string {
   const randLetters = () => Math.random().toString(36).substring(2, 4).toUpperCase();
@@ -17,46 +20,36 @@ export function generateBookingId(dateStr?: string, timeStr?: string): string {
   return `26AP-${d}-${t}-${randLetters()}-${randDigits()}`;
 }
 
-function getStoredBookings(): Booking[] {
-  try {
-    localStorage.removeItem('lusentic_spa_bookings');
-    const raw = localStorage.getItem(BOOKINGS_KEY);
-    if (!raw) {
-      localStorage.setItem(BOOKINGS_KEY, JSON.stringify([]));
-      return [];
+function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
+  const result: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+        result[key] = sanitizeForFirestore(val);
+      } else {
+        result[key] = val;
+      }
     }
-    const list = JSON.parse(raw);
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
   }
-}
-
-function saveBookings(bookings: Booking[]): void {
-  try {
-    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
-  } catch (e) {
-    console.warn('Failed to save bookings locally:', e);
-  }
+  return result;
 }
 
 export const bookingService = {
   async getBookings(): Promise<Booking[]> {
     try {
       const snap = await getDocs(collection(db, COLLECTION_NAME));
-      if (!snap.empty) {
-        const cloudBookings: Booking[] = [];
-        snap.forEach((d) => {
-          cloudBookings.push(d.data() as Booking);
-        });
-        cloudBookings.sort((a, b) => b.id - a.id);
-        saveBookings(cloudBookings);
-        return cloudBookings;
-      }
+      const cloudBookings: Booking[] = [];
+      snap.forEach((d) => {
+        cloudBookings.push(d.data() as Booking);
+      });
+      cloudBookings.sort((a, b) => b.id - a.id);
+      memoryBookings = cloudBookings;
+      return cloudBookings;
     } catch (error) {
-      console.warn('Firestore getAll bookings error, falling back to local cache:', error);
+      console.error('Firestore getAll bookings error:', error);
     }
-    return getStoredBookings();
+    return memoryBookings;
   },
 
   async getClientBookings(clientId?: number, clientEmail?: string): Promise<Booking[]> {
@@ -78,7 +71,7 @@ export const bookingService = {
     const newId = Math.max(0, ...all.map((b) => b.id)) + 1;
     const bookingCode = generateBookingId(formData.date, formData.time);
 
-    const newBooking: Booking = {
+    const newBooking: Booking = sanitizeForFirestore({
       id: newId,
       bookingId: bookingCode,
       clientName: formData.clientName,
@@ -96,31 +89,21 @@ export const bookingService = {
       clientPhone: formData.clientPhone,
       clientEmail: formData.clientEmail,
       notes: formData.notes,
-    };
+    });
 
-    const updated = [newBooking, ...all];
-    saveBookings(updated);
+    memoryBookings = [newBooking, ...all];
 
-    // Save to Firestore
     try {
       await setDoc(doc(db, COLLECTION_NAME, bookingCode), newBooking);
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${bookingCode}`);
-      } catch {
-        console.warn('Saved booking locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${bookingCode}`);
     }
 
-    // Also update loyalty points in current user if available
-    try {
-      const userRaw = localStorage.getItem('lusentic_spa_user_v2');
-      if (userRaw) {
-        const u = JSON.parse(userRaw);
-        u.loyaltyPoints = (u.loyaltyPoints || 0) + 20; // 20 bonus points per booking
-        localStorage.setItem('lusentic_spa_user_v2', JSON.stringify(u));
-      }
-    } catch {}
+    // Update loyalty points in Firestore for current user if applicable
+    const activeUserId = clientUserId || authService.getCurrentUser()?.id;
+    if (activeUserId) {
+      authService.addLoyaltyPoints(activeUserId, 20).catch(() => {});
+    }
 
     return newBooking;
   },
@@ -130,26 +113,27 @@ export const bookingService = {
     const index = all.findIndex((b) => b.id === id);
     if (index === -1) return null;
 
-    all[index].status = status;
-    all[index].updatedAt = new Date().toISOString();
-    saveBookings(all);
+    const updatedBooking: Booking = {
+      ...all[index],
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+    const nextList = [...all];
+    nextList[index] = updatedBooking;
+    memoryBookings = nextList;
 
-    const bookingCode = all[index].bookingId;
+    const bookingCode = updatedBooking.bookingId;
     try {
       await setDoc(
         doc(db, COLLECTION_NAME, bookingCode),
-        { status, updatedAt: all[index].updatedAt },
+        { status, updatedAt: updatedBooking.updatedAt },
         { merge: true }
       );
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${bookingCode}`);
-      } catch {
-        console.warn('Updated booking status locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${bookingCode}`);
     }
 
-    return all[index];
+    return updatedBooking;
   },
 
   async cancelBooking(id: number): Promise<Booking | null> {
@@ -159,18 +143,13 @@ export const bookingService = {
   async deleteBooking(id: number): Promise<boolean> {
     const all = await this.getBookings();
     const booking = all.find((b) => b.id === id);
-    const filtered = all.filter((b) => b.id !== id);
-    saveBookings(filtered);
+    memoryBookings = all.filter((b) => b.id !== id);
 
     if (booking) {
       try {
         await deleteDoc(doc(db, COLLECTION_NAME, booking.bookingId));
       } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${booking.bookingId}`);
-        } catch {
-          console.warn('Deleted booking locally, cloud sync pending.');
-        }
+        handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${booking.bookingId}`);
       }
     }
 
@@ -178,7 +157,7 @@ export const bookingService = {
   },
 
   subscribe(callback: (bookings: Booking[]) => void): () => void {
-    callback(getStoredBookings());
+    callback(memoryBookings);
     try {
       const unsub = onSnapshot(
         collection(db, COLLECTION_NAME),
@@ -188,7 +167,7 @@ export const bookingService = {
             cloud.push(d.data() as Booking);
           });
           cloud.sort((a, b) => b.id - a.id);
-          saveBookings(cloud);
+          memoryBookings = cloud;
           callback(cloud);
         },
         (error) => {

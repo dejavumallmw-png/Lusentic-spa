@@ -1,11 +1,8 @@
 import { User, UserRole } from '../types';
-import { signInWithGoogle, logoutFirebase, db } from './firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { signInWithGoogle, logoutFirebase, db, handleFirestoreError, OperationType } from './firebase';
+import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
-const USER_KEY = 'lusentic_spa_user_v2';
-const CLIENTS_KEY = 'lusentic_spa_clients_v2';
-const ADMIN_PROFILE_KEY = 'lusentic_spa_admin_profile_v1';
-const STAFF_LIST_KEY = 'lusentic_spa_staff_list_v2';
+const USERS_COLLECTION = 'users';
 
 export const DEFAULT_ADMIN_CREDENTIALS = {
   username: 'admin@lusentic.com',
@@ -14,68 +11,119 @@ export const DEFAULT_ADMIN_CREDENTIALS = {
   defaultLastName: 'Bonya',
 };
 
-function getStoredAdminProfile(): User {
-  try {
-    const raw = localStorage.getItem(ADMIN_PROFILE_KEY);
-    if (raw) {
-      return JSON.parse(raw);
+const DEFAULT_ADMIN_USER: User = {
+  id: 1,
+  username: DEFAULT_ADMIN_CREDENTIALS.username,
+  email: DEFAULT_ADMIN_CREDENTIALS.username,
+  firstName: DEFAULT_ADMIN_CREDENTIALS.defaultFirstName,
+  lastName: DEFAULT_ADMIN_CREDENTIALS.defaultLastName,
+  role: 'admin',
+  phone: '+27 11 888 9000',
+  loyaltyPoints: 0,
+  profilePhoto: '',
+  avatar: '',
+};
+
+// In-memory runtime state synced directly with Firebase Firestore (zero localStorage)
+let currentSessionUser: User | null = null;
+let memoryAdminProfile: User = { ...DEFAULT_ADMIN_USER };
+let memoryStaffList: User[] = [{ ...DEFAULT_ADMIN_USER }];
+let memoryClients: User[] = [];
+let isInitializedListener = false;
+
+function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
+  const result: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+        result[key] = sanitizeForFirestore(val);
+      } else {
+        result[key] = val;
+      }
     }
-  } catch {}
-
-  const defaultAdmin: User = {
-    id: 1,
-    username: DEFAULT_ADMIN_CREDENTIALS.username,
-    email: DEFAULT_ADMIN_CREDENTIALS.username,
-    firstName: DEFAULT_ADMIN_CREDENTIALS.defaultFirstName,
-    lastName: DEFAULT_ADMIN_CREDENTIALS.defaultLastName,
-    role: 'admin',
-    phone: '+27 11 888 9000',
-    loyaltyPoints: 0,
-    profilePhoto: '',
-    avatar: '',
-  };
-  localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(defaultAdmin));
-  return defaultAdmin;
-}
-
-function saveAdminProfile(admin: User): void {
-  localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(admin));
-}
-
-function getStoredClients(): User[] {
-  try {
-    const raw = localStorage.getItem(CLIENTS_KEY);
-    if (!raw) {
-      localStorage.setItem(CLIENTS_KEY, JSON.stringify([]));
-      return [];
-    }
-    return JSON.parse(raw);
-  } catch {
-    return [];
   }
-}
-
-function saveClients(clients: User[]): void {
-  localStorage.setItem(CLIENTS_KEY, JSON.stringify(clients));
+  return result;
 }
 
 function normalizePhone(phone: string): string {
   return phone.replace(/[^0-9]/g, '');
 }
 
+function initUsersRealtimeSync() {
+  if (isInitializedListener) return;
+  isInitializedListener = true;
+  try {
+    onSnapshot(
+      collection(db, USERS_COLLECTION),
+      (snap) => {
+        if (!snap.empty) {
+          const allUsers: User[] = [];
+          snap.forEach((d) => {
+            allUsers.push(d.data() as User);
+          });
+
+          const adminDoc = allUsers.find(
+            (u) => u.id === 1 || u.username === DEFAULT_ADMIN_CREDENTIALS.username
+          );
+          if (adminDoc) {
+            memoryAdminProfile = adminDoc;
+          }
+
+          const staff = allUsers.filter((u) => u.role === 'admin' || u.role === 'receptionist');
+          if (!staff.some((s) => s.id === 1 || s.username === DEFAULT_ADMIN_CREDENTIALS.username)) {
+            staff.unshift(memoryAdminProfile);
+          }
+          memoryStaffList = staff;
+
+          memoryClients = allUsers.filter((u) => u.role === 'client');
+
+          if (currentSessionUser) {
+            const refreshed = allUsers.find((u) => u.id === currentSessionUser?.id);
+            if (refreshed) {
+              currentSessionUser = refreshed;
+            }
+          }
+        } else {
+          // Seed default admin into Firestore users collection
+          setDoc(
+            doc(db, USERS_COLLECTION, String(DEFAULT_ADMIN_USER.id)),
+            sanitizeForFirestore(DEFAULT_ADMIN_USER)
+          ).catch(() => {});
+        }
+      },
+      (err) => {
+        console.warn('Firestore users listener warning:', err);
+      }
+    );
+  } catch (err) {
+    console.warn('Unable to attach Firestore users listener:', err);
+  }
+}
+
+initUsersRealtimeSync();
+
+async function fetchAllUsersFromFirestore(): Promise<User[]> {
+  try {
+    const snap = await getDocs(collection(db, USERS_COLLECTION));
+    const list: User[] = [];
+    snap.forEach((d) => {
+      list.push(d.data() as User);
+    });
+    return list;
+  } catch (e) {
+    console.error('Failed to fetch users from Firestore:', e);
+    return [...memoryStaffList, ...memoryClients];
+  }
+}
+
 export const authService = {
   getCurrentUser(): User | null {
-    try {
-      const raw = localStorage.getItem(USER_KEY);
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
+    return currentSessionUser;
   },
 
   /**
-   * Client login using Phone Number and 4-Digit PIN
+   * Client login using Phone Number and 4-Digit PIN directly against Firebase Firestore
    */
   async loginClient(phone: string, pin: string): Promise<User> {
     const cleanInputPhone = normalizePhone(phone);
@@ -86,8 +134,10 @@ export const authService = {
       throw new Error('Security PIN must be exactly 4 digits.');
     }
 
-    const clients = getStoredClients();
-    // Match phone by either exact match or suffix (last 9 digits)
+    const allUsers = await fetchAllUsersFromFirestore();
+    const clients = allUsers.filter((u) => u.role === 'client');
+    memoryClients = clients;
+
     const client = clients.find((c) => {
       const storedClean = normalizePhone(c.phone || '');
       return (
@@ -105,12 +155,12 @@ export const authService = {
       throw new Error('Incorrect 4-digit PIN. Please verify and try again.');
     }
 
-    localStorage.setItem(USER_KEY, JSON.stringify(client));
+    currentSessionUser = client;
     return client;
   },
 
   /**
-   * Client registration using Phone Number, 4-digit PIN, Full Name, and Optional Email
+   * Client registration using Phone Number, 4-digit PIN, Full Name, and Optional Email in Firebase Firestore
    */
   async registerClient(data: {
     name: string;
@@ -130,7 +180,8 @@ export const authService = {
       throw new Error('Please enter your full name.');
     }
 
-    const clients = getStoredClients();
+    const allUsers = await fetchAllUsersFromFirestore();
+    const clients = allUsers.filter((u) => u.role === 'client');
     const existing = clients.find((c) => normalizePhone(c.phone || '') === cleanPhone);
 
     const nameParts = data.name.trim().split(' ');
@@ -138,21 +189,30 @@ export const authService = {
     const lastName = nameParts.slice(1).join(' ') || '';
 
     if (existing) {
-      existing.pin = data.pin.trim();
-      existing.firstName = firstName;
-      existing.lastName = lastName;
-      if (data.email) existing.email = data.email.trim();
-      if (data.photo) {
-        existing.profilePhoto = data.photo;
-        existing.avatar = data.photo;
+      const updatedExisting: User = sanitizeForFirestore({
+        ...existing,
+        pin: data.pin.trim(),
+        firstName,
+        lastName,
+        email: data.email ? data.email.trim() : existing.email,
+        profilePhoto: data.photo || existing.profilePhoto || '',
+        avatar: data.photo || existing.avatar || '',
+      });
+
+      try {
+        await setDoc(doc(db, USERS_COLLECTION, String(updatedExisting.id)), updatedExisting, {
+          merge: true,
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `${USERS_COLLECTION}/${updatedExisting.id}`);
       }
-      saveClients(clients);
-      localStorage.setItem(USER_KEY, JSON.stringify(existing));
-      return existing;
+
+      currentSessionUser = updatedExisting;
+      return updatedExisting;
     }
 
     const newId = Math.floor(Math.random() * 90000 + 10000);
-    const newClient: User = {
+    const newClient: User = sanitizeForFirestore({
       id: newId,
       username: data.name.trim().replace(/\s+/g, '_').toLowerCase(),
       firstName,
@@ -164,19 +224,21 @@ export const authService = {
       loyaltyPoints: 50,
       profilePhoto: data.photo || '',
       avatar: data.photo || '',
-    };
+    });
 
-    clients.push(newClient);
-    saveClients(clients);
-    localStorage.setItem(USER_KEY, JSON.stringify(newClient));
+    try {
+      await setDoc(doc(db, USERS_COLLECTION, String(newId)), newClient);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `${USERS_COLLECTION}/${newId}`);
+    }
+
+    memoryClients = [...clients, newClient];
+    currentSessionUser = newClient;
     return newClient;
   },
 
   /**
    * Admin and Staff Login via URL Link (/admin, #admin, etc.)
-   * Authenticates against:
-   * 1. Default Admin: admin@lusentic.com / Lusentic1112= (Dynamic Admin: Prince Bonya)
-   * 2. Any additional staff / admin accounts added by Prince Bonya
    */
   async loginStaff(usernameOrEmail: string, passwordAttempt: string): Promise<User> {
     const cleanUser = usernameOrEmail.trim().toLowerCase();
@@ -184,16 +246,27 @@ export const authService = {
 
     // 1. Check Default Super Admin
     if (
-      (cleanUser === DEFAULT_ADMIN_CREDENTIALS.username.toLowerCase() ||
-        cleanUser === 'admin') &&
+      (cleanUser === DEFAULT_ADMIN_CREDENTIALS.username.toLowerCase() || cleanUser === 'admin') &&
       cleanPass === DEFAULT_ADMIN_CREDENTIALS.password
     ) {
-      const admin = getStoredAdminProfile();
-      localStorage.setItem(USER_KEY, JSON.stringify(admin));
-      return admin;
+      try {
+        const adminSnap = await getDoc(doc(db, USERS_COLLECTION, String(DEFAULT_ADMIN_USER.id)));
+        if (adminSnap.exists()) {
+          memoryAdminProfile = adminSnap.data() as User;
+        } else {
+          await setDoc(
+            doc(db, USERS_COLLECTION, String(DEFAULT_ADMIN_USER.id)),
+            sanitizeForFirestore(memoryAdminProfile)
+          );
+        }
+      } catch {
+        // fallback to in-memory admin profile if needed
+      }
+      currentSessionUser = memoryAdminProfile;
+      return memoryAdminProfile;
     }
 
-    // 2. Check Additional Staff / Admin accounts added in the system
+    // 2. Check Additional Staff / Admin accounts in Firestore
     const staffList = await this.getAllStaff();
     const matchedStaff = staffList.find(
       (s) =>
@@ -203,7 +276,7 @@ export const authService = {
     );
 
     if (matchedStaff) {
-      localStorage.setItem(USER_KEY, JSON.stringify(matchedStaff));
+      currentSessionUser = matchedStaff;
       return matchedStaff;
     }
 
@@ -211,56 +284,78 @@ export const authService = {
   },
 
   getAdminProfile(): User {
-    return getStoredAdminProfile();
+    return memoryAdminProfile;
   },
 
   async updateAdminProfile(updates: Partial<User>): Promise<User> {
-    const current = getStoredAdminProfile();
-    const updated: User = { ...current, ...updates };
-    saveAdminProfile(updated);
+    const updated: User = sanitizeForFirestore({
+      ...memoryAdminProfile,
+      ...updates,
+      id: 1,
+      role: 'admin',
+    });
+    memoryAdminProfile = updated;
 
-    // If currently logged in as admin, update current session as well
-    const currentUser = this.getCurrentUser();
-    if (currentUser && currentUser.role === 'admin') {
-      localStorage.setItem(USER_KEY, JSON.stringify(updated));
+    if (currentSessionUser && currentSessionUser.role === 'admin') {
+      currentSessionUser = updated;
     }
+
+    try {
+      await setDoc(doc(db, USERS_COLLECTION, String(updated.id)), updated, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `${USERS_COLLECTION}/${updated.id}`);
+    }
+
     return updated;
   },
 
   async updateProfile(updates: Partial<User>): Promise<User> {
-    const current = this.getCurrentUser();
-    if (!current) throw new Error('Not logged in');
+    if (!currentSessionUser) throw new Error('Not logged in');
 
-    const updated = { ...current, ...updates };
-    localStorage.setItem(USER_KEY, JSON.stringify(updated));
+    const updated: User = sanitizeForFirestore({
+      ...currentSessionUser,
+      ...updates,
+    });
+    currentSessionUser = updated;
 
-    if (current.role === 'admin') {
-      saveAdminProfile(updated);
-    } else {
-      const clients = getStoredClients();
-      const idx = clients.findIndex((c) => c.id === current.id || (current.phone && c.phone === current.phone));
-      if (idx !== -1) {
-        clients[idx] = { ...clients[idx], ...updates };
-        saveClients(clients);
-      }
+    if (updated.role === 'admin' && updated.id === 1) {
+      memoryAdminProfile = updated;
+    }
+
+    try {
+      await setDoc(doc(db, USERS_COLLECTION, String(updated.id)), updated, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `${USERS_COLLECTION}/${updated.id}`);
     }
 
     return updated;
   },
 
-  async getAllStaff(): Promise<User[]> {
+  async addLoyaltyPoints(userId: number, pointsToAdd: number): Promise<void> {
     try {
-      const raw = localStorage.getItem(STAFF_LIST_KEY);
-      if (!raw) {
-        const defaultAdmin = getStoredAdminProfile();
-        const initial = [defaultAdmin];
-        localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(initial));
-        return initial;
+      const userRef = doc(db, USERS_COLLECTION, String(userId));
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        const userData = snap.data() as User;
+        const nextPoints = (userData.loyaltyPoints || 0) + pointsToAdd;
+        await setDoc(userRef, { loyaltyPoints: nextPoints }, { merge: true });
+        if (currentSessionUser && currentSessionUser.id === userId) {
+          currentSessionUser = { ...currentSessionUser, loyaltyPoints: nextPoints };
+        }
       }
-      return JSON.parse(raw);
-    } catch {
-      return [getStoredAdminProfile()];
+    } catch (e) {
+      console.warn('Could not update loyalty points in Firestore:', e);
     }
+  },
+
+  async getAllStaff(): Promise<User[]> {
+    const allUsers = await fetchAllUsersFromFirestore();
+    const staff = allUsers.filter((u) => u.role === 'admin' || u.role === 'receptionist');
+    if (!staff.some((s) => s.id === 1 || s.username === DEFAULT_ADMIN_CREDENTIALS.username)) {
+      staff.unshift(memoryAdminProfile);
+    }
+    memoryStaffList = staff;
+    return staff;
   },
 
   async addStaff(data: {
@@ -273,30 +368,44 @@ export const authService = {
     password?: string;
     avatar?: string;
   }): Promise<User> {
-    const list = await this.getAllStaff();
-    const newStaff: User = {
-      id: Math.floor(Math.random() * 9000 + 1000),
+    const newId = Math.floor(Math.random() * 9000 + 1000);
+    const newStaff: User = sanitizeForFirestore({
+      id: newId,
       username: data.username || data.email.split('@')[0],
       email: data.email,
       firstName: data.firstName,
       lastName: data.lastName,
       role: data.role,
-      phone: data.phone,
+      phone: data.phone || '',
       password: data.password || 'Lusentic1112=',
       loyaltyPoints: 0,
       profilePhoto: data.avatar || '',
       avatar: data.avatar || '',
-    };
-    const updated = [...list, newStaff];
-    localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(updated));
+    });
+
+    memoryStaffList = [...memoryStaffList, newStaff];
+
+    try {
+      await setDoc(doc(db, USERS_COLLECTION, String(newId)), newStaff);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `${USERS_COLLECTION}/${newId}`);
+    }
+
     return newStaff;
   },
 
   async removeStaff(id: number): Promise<boolean> {
-    const list = await this.getAllStaff();
-    // Prevent removing the default super admin
-    const filtered = list.filter((s) => s.id !== id || s.username === DEFAULT_ADMIN_CREDENTIALS.username);
-    localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(filtered));
+    if (id === 1) return false;
+    memoryStaffList = memoryStaffList.filter(
+      (s) => s.id !== id || s.username === DEFAULT_ADMIN_CREDENTIALS.username
+    );
+
+    try {
+      await deleteDoc(doc(db, USERS_COLLECTION, String(id)));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `${USERS_COLLECTION}/${id}`);
+    }
+
     return true;
   },
 
@@ -304,25 +413,34 @@ export const authService = {
     const list = await this.getAllStaff();
     const idx = list.findIndex((s) => s.id === id);
     if (idx === -1) return null;
-    list[idx] = { ...list[idx], ...updates };
-    localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(list));
 
-    if (list[idx].username === DEFAULT_ADMIN_CREDENTIALS.username) {
-      saveAdminProfile(list[idx]);
+    const merged = sanitizeForFirestore({ ...list[idx], ...updates });
+    const nextList = [...list];
+    nextList[idx] = merged;
+    memoryStaffList = nextList;
+
+    if (merged.id === 1 || merged.username === DEFAULT_ADMIN_CREDENTIALS.username) {
+      memoryAdminProfile = merged;
     }
-    return list[idx];
+
+    try {
+      await setDoc(doc(db, USERS_COLLECTION, String(id)), merged, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `${USERS_COLLECTION}/${id}`);
+    }
+
+    return merged;
   },
 
   async switchRole(role: UserRole): Promise<User> {
     if (role === 'admin') {
-      const admin = getStoredAdminProfile();
-      localStorage.setItem(USER_KEY, JSON.stringify(admin));
-      return admin;
+      currentSessionUser = memoryAdminProfile;
+      return memoryAdminProfile;
     }
     const staffList = await this.getAllStaff();
     const target = staffList.find((s) => s.role === role);
     if (target) {
-      localStorage.setItem(USER_KEY, JSON.stringify(target));
+      currentSessionUser = target;
       return target;
     }
     const newUser: User = {
@@ -334,7 +452,7 @@ export const authService = {
       role,
       loyaltyPoints: 0,
     };
-    localStorage.setItem(USER_KEY, JSON.stringify(newUser));
+    currentSessionUser = newUser;
     return newUser;
   },
 
@@ -357,7 +475,7 @@ export const authService = {
     const firstName = nameParts[0] || 'Client';
     const lastName = nameParts.slice(1).join(' ') || '';
 
-    const user: User = {
+    const user: User = sanitizeForFirestore({
       id: Math.floor(Math.random() * 90000 + 10000),
       username: email || firebaseUser.uid,
       email,
@@ -367,14 +485,14 @@ export const authService = {
       loyaltyPoints: 50,
       avatar: firebaseUser.photoURL || '',
       profilePhoto: firebaseUser.photoURL || '',
-    };
+    });
 
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    currentSessionUser = user;
 
     try {
-      await setDoc(doc(db, 'users', firebaseUser.uid), user, { merge: true });
+      await setDoc(doc(db, USERS_COLLECTION, firebaseUser.uid), user, { merge: true });
     } catch (e) {
-      console.warn('Profile synced locally, cloud sync pending:', e);
+      console.warn('Could not sync Google profile to Firestore:', e);
     }
 
     return user;
@@ -390,7 +508,7 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
-    localStorage.removeItem(USER_KEY);
+    currentSessionUser = null;
     await logoutFirebase();
   },
 };

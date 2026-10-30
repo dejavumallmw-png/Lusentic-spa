@@ -2,7 +2,6 @@ import { SiteSettings } from '../types';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
-const STORAGE_KEY = 'lusentic_spa_settings';
 const COLLECTION_NAME = 'settings';
 const DOC_ID = 'general';
 
@@ -39,7 +38,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   membershipButtonText: 'Subscribe & Save Now',
   membershipClubTitle: 'Lusentic Wellness Club',
   membershipHeading: 'Prioritize Your Health with Consistent Monthly Care',
-  membershipSubtext: "True rejuvenation isn't an occasional luxury—it's a sustained discipline. Our membership guarantees you dedicated time every month to decompress, reset muscles, and receive therapist care at our lowest exclusive rates.",
+  membershipSubtext:
+    "True rejuvenation isn't an occasional luxury—it's a sustained discipline. Our membership guarantees you dedicated time every month to decompress, reset muscles, and receive therapist care at our lowest exclusive rates.",
   membershipPerks: [
     'One 60-Minute Aromatherapy or Swedish Massage every month',
     '20% Member Discount on all additional spa services & packages',
@@ -51,7 +51,17 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   membershipMembersCount: '420+ Active Club Members',
   membershipFooterNote: 'Exclusive invitation to quarterly seasonal retreats',
   membershipGuarantee: 'Secure auto-billing • Easy 1-click pause',
+  // Sanctuary Location Coordinates for Google Maps Directions
+  coordinatesString: '26.170776, 26.166044',
+  coordinates: {
+    lat: 26.170776,
+    lng: 26.166044,
+  },
 };
+
+// In-memory runtime state synced directly with Firebase Firestore (zero localStorage)
+let memorySettings: SiteSettings = { ...DEFAULT_SETTINGS };
+let isSeedingSettings = false;
 
 /**
  * Sanitizes phone number digits and returns a valid wa.me link
@@ -70,38 +80,10 @@ export function getCleanWhatsAppUrl(phoneOrUrl?: string, customMessage?: string)
   return customMessage ? `${base}?text=${encodeURIComponent(customMessage)}` : base;
 }
 
-function getStoredSettings(): SiteSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_SETTINGS));
-      return DEFAULT_SETTINGS;
-    }
-    const parsed = JSON.parse(raw);
-    return {
-      ...DEFAULT_SETTINGS,
-      ...parsed,
-      socials: {
-        ...DEFAULT_SETTINGS.socials,
-        ...(parsed.socials || {}),
-      },
-      membershipPerks: Array.isArray(parsed.membershipPerks) && parsed.membershipPerks.length > 0
-        ? parsed.membershipPerks
-        : DEFAULT_SETTINGS.membershipPerks,
-    };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-}
-
-function saveSettingsLocally(settings: SiteSettings): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('lusentic_settings_updated', { detail: settings }));
-    }
-  } catch (e) {
-    console.warn('Failed to save settings locally:', e);
+function updateMemorySettings(settings: SiteSettings): void {
+  memorySettings = settings;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('lusentic_settings_updated', { detail: settings }));
   }
 }
 
@@ -120,11 +102,25 @@ function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
   return result;
 }
 
+function mergeSettingsWithDefaults(cloud: Partial<SiteSettings>): SiteSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...cloud,
+    socials: {
+      ...DEFAULT_SETTINGS.socials,
+      ...(cloud.socials || {}),
+    },
+    membershipPerks:
+      Array.isArray(cloud.membershipPerks) && cloud.membershipPerks.length > 0
+        ? cloud.membershipPerks
+        : DEFAULT_SETTINGS.membershipPerks,
+  };
+}
+
 export const settingsService = {
   getSettings(): SiteSettings {
-    // Fire-and-forget cloud sync to ensure local cache is up-to-date
     this.syncFromCloud().catch(() => {});
-    return getStoredSettings();
+    return memorySettings;
   },
 
   async syncFromCloud(): Promise<SiteSettings> {
@@ -132,28 +128,25 @@ export const settingsService = {
       const snap = await getDoc(doc(db, COLLECTION_NAME, DOC_ID));
       if (snap.exists()) {
         const cloud = snap.data() as SiteSettings;
-        const merged: SiteSettings = {
-          ...DEFAULT_SETTINGS,
-          ...cloud,
-          socials: {
-            ...DEFAULT_SETTINGS.socials,
-            ...(cloud.socials || {}),
-          },
-          membershipPerks: Array.isArray(cloud.membershipPerks) && cloud.membershipPerks.length > 0
-            ? cloud.membershipPerks
-            : DEFAULT_SETTINGS.membershipPerks,
-        };
-        saveSettingsLocally(merged);
+        const merged = mergeSettingsWithDefaults(cloud);
+        updateMemorySettings(merged);
         return merged;
+      } else if (!isSeedingSettings) {
+        isSeedingSettings = true;
+        try {
+          await setDoc(doc(db, COLLECTION_NAME, DOC_ID), sanitizeForFirestore(DEFAULT_SETTINGS));
+        } catch (seedErr) {
+          console.warn('Could not auto-seed default settings to Firestore:', seedErr);
+        }
       }
     } catch (e) {
       console.warn('Could not sync settings from Firestore:', e);
     }
-    return getStoredSettings();
+    return memorySettings;
   },
 
   async updateSettings(updates: Partial<SiteSettings>): Promise<SiteSettings> {
-    const current = getStoredSettings();
+    const current = memorySettings;
     const updated: SiteSettings = {
       ...current,
       ...updates,
@@ -161,52 +154,39 @@ export const settingsService = {
         ...current.socials,
         ...updates.socials,
       },
-      membershipPerks: updates.membershipPerks !== undefined
-        ? updates.membershipPerks
-        : current.membershipPerks,
+      membershipPerks:
+        updates.membershipPerks !== undefined ? updates.membershipPerks : current.membershipPerks,
     };
 
-    // 1. Immediately update local cache for instant UI feedback on the saving device
-    saveSettingsLocally(updated);
+    updateMemorySettings(updated);
 
-    // 2. Persist to Firebase Firestore so all other devices and users receive it
     try {
       const sanitized = sanitizeForFirestore(updated);
       await setDoc(doc(db, COLLECTION_NAME, DOC_ID), sanitized, { merge: true });
-      console.log('Site branding and settings successfully persisted to Firebase Firestore.');
     } catch (err) {
       console.error('Failed to write settings to Firebase Firestore:', err);
-      try {
-        handleFirestoreError(err, OperationType.UPDATE, `${COLLECTION_NAME}/${DOC_ID}`);
-      } catch (e) {
-        throw e;
-      }
+      handleFirestoreError(err, OperationType.UPDATE, `${COLLECTION_NAME}/${DOC_ID}`);
     }
 
     return updated;
   },
 
   /**
-   * Subscribe to real-time settings updates.
-   * Listens to Firebase Firestore onSnapshot so changes made on ANY device
-   * (e.g. updating the logo on mobile) instantly broadcast to ALL connected browsers.
+   * Subscribe to real-time settings updates directly from Firebase Firestore.
    */
   subscribe(callback: (settings: SiteSettings) => void): () => void {
-    // 1. Immediately emit current stored settings
-    callback(getStoredSettings());
+    callback(memorySettings);
 
-    // 2. Listen to intra-tab local updates
-    const localHandler = (e: Event) => {
+    const memoryHandler = (e: Event) => {
       const custom = e as CustomEvent<SiteSettings>;
       if (custom.detail) {
         callback(custom.detail);
       }
     };
     if (typeof window !== 'undefined') {
-      window.addEventListener('lusentic_settings_updated', localHandler);
+      window.addEventListener('lusentic_settings_updated', memoryHandler);
     }
 
-    // 3. Listen to live Firebase Firestore updates across all devices
     let unsubFirestore = () => {};
     try {
       const docRef = doc(db, COLLECTION_NAME, DOC_ID);
@@ -215,19 +195,11 @@ export const settingsService = {
         (snap) => {
           if (snap.exists()) {
             const cloud = snap.data() as SiteSettings;
-            const merged: SiteSettings = {
-              ...DEFAULT_SETTINGS,
-              ...cloud,
-              socials: {
-                ...DEFAULT_SETTINGS.socials,
-                ...(cloud.socials || {}),
-              },
-              membershipPerks: Array.isArray(cloud.membershipPerks) && cloud.membershipPerks.length > 0
-                ? cloud.membershipPerks
-                : DEFAULT_SETTINGS.membershipPerks,
-            };
-            saveSettingsLocally(merged);
+            const merged = mergeSettingsWithDefaults(cloud);
+            updateMemorySettings(merged);
             callback(merged);
+          } else {
+            this.syncFromCloud().then((seeded) => callback(seeded));
           }
         },
         (error) => {
@@ -240,7 +212,7 @@ export const settingsService = {
 
     return () => {
       if (typeof window !== 'undefined') {
-        window.removeEventListener('lusentic_settings_updated', localHandler);
+        window.removeEventListener('lusentic_settings_updated', memoryHandler);
       }
       unsubFirestore();
     };

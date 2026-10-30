@@ -1,32 +1,29 @@
 import { ArticleItem } from '../types';
 import { INITIAL_ARTICLES } from '../data/initialData';
 import { db, handleFirestoreError, OperationType } from './firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, onSnapshot, Unsubscribe } from 'firebase/firestore';
 
 export type Article = ArticleItem;
 
-const STORAGE_KEY = 'lusentic_spa_articles';
 const COLLECTION_NAME = 'articles';
 
-function getStoredArticles(): ArticleItem[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_ARTICLES));
-      return INITIAL_ARTICLES;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return INITIAL_ARTICLES;
-  }
-}
+// In-memory runtime state synced directly with Firebase Firestore (zero localStorage)
+let memoryArticles: ArticleItem[] = [...INITIAL_ARTICLES];
+let isSeedingArticles = false;
 
-function saveArticles(articles: ArticleItem[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(articles));
-  } catch (e) {
-    console.warn('Failed to save articles locally:', e);
+function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
+  const result: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+        result[key] = sanitizeForFirestore(val);
+      } else {
+        result[key] = val;
+      }
+    }
   }
+  return result;
 }
 
 export const articleService = {
@@ -39,45 +36,41 @@ export const articleService = {
           cloudList.push(d.data() as ArticleItem);
         });
         cloudList.sort((a, b) => b.id - a.id);
-        saveArticles(cloudList);
+        memoryArticles = cloudList;
         return cloudList;
-      } else {
-        const initial = getStoredArticles();
-        for (const art of initial) {
+      } else if (!isSeedingArticles) {
+        isSeedingArticles = true;
+        for (const art of INITIAL_ARTICLES) {
           try {
-            await setDoc(doc(db, COLLECTION_NAME, String(art.id)), art);
-          } catch {
-            // ignore non-blocking seed
+            await setDoc(doc(db, COLLECTION_NAME, String(art.id)), sanitizeForFirestore(art));
+          } catch (err) {
+            console.warn('Could not seed article to Firestore:', art.title, err);
           }
         }
-        return initial;
+        memoryArticles = [...INITIAL_ARTICLES];
+        return memoryArticles;
       }
     } catch (error) {
-      console.warn('Firestore getAll articles error, falling back to local cache:', error);
+      console.error('Firestore getAll articles error:', error);
     }
-    return getStoredArticles();
+    return memoryArticles;
   },
 
   async addArticle(data: Omit<ArticleItem, 'id' | 'date'>): Promise<ArticleItem> {
     const list = await this.getAll();
     const newId = Math.max(0, ...list.map((a) => a.id)) + 1;
     const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const newArticle: ArticleItem = {
+    const newArticle: ArticleItem = sanitizeForFirestore({
       ...data,
       id: newId,
       date: today,
-    };
-    const updated = [newArticle, ...list];
-    saveArticles(updated);
+    });
+    memoryArticles = [newArticle, ...list];
 
     try {
       await setDoc(doc(db, COLLECTION_NAME, String(newId)), newArticle);
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${newId}`);
-      } catch {
-        console.warn('Saved article locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${newId}`);
     }
 
     return newArticle;
@@ -88,18 +81,15 @@ export const articleService = {
     const index = list.findIndex((a) => a.id === id);
     if (index === -1) return null;
 
-    const merged = { ...list[index], ...updates };
-    list[index] = merged;
-    saveArticles(list);
+    const merged = sanitizeForFirestore({ ...list[index], ...updates });
+    const nextList = [...list];
+    nextList[index] = merged;
+    memoryArticles = nextList;
 
     try {
       await setDoc(doc(db, COLLECTION_NAME, String(id)), merged, { merge: true });
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${id}`);
-      } catch {
-        console.warn('Updated article locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${id}`);
     }
 
     return merged;
@@ -107,19 +97,46 @@ export const articleService = {
 
   async deleteArticle(id: number): Promise<boolean> {
     const list = await this.getAll();
-    const filtered = list.filter((a) => a.id !== id);
-    saveArticles(filtered);
+    memoryArticles = list.filter((a) => a.id !== id);
 
     try {
       await deleteDoc(doc(db, COLLECTION_NAME, String(id)));
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${id}`);
-      } catch {
-        console.warn('Deleted article locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${id}`);
     }
 
     return true;
+  },
+
+  subscribe(callback: (articles: ArticleItem[]) => void): () => void {
+    callback(memoryArticles);
+    let unsub: Unsubscribe | null = null;
+    try {
+      unsub = onSnapshot(
+        collection(db, COLLECTION_NAME),
+        (snap) => {
+          if (!snap.empty) {
+            const list: ArticleItem[] = [];
+            snap.forEach((d) => {
+              list.push(d.data() as ArticleItem);
+            });
+            list.sort((a, b) => b.id - a.id);
+            memoryArticles = list;
+            callback(list);
+          } else {
+            this.getAll().then((seeded) => callback(seeded));
+          }
+        },
+        (err) => {
+          console.warn('Articles onSnapshot warning:', err);
+        }
+      );
+    } catch (e) {
+      console.warn('Unable to attach Firestore articles listener:', e);
+    }
+
+    return () => {
+      if (unsub) unsub();
+    };
   },
 };

@@ -16,25 +16,6 @@ service cloud.firestore {
       return request.resource.data;
     }
 
-    function existing() {
-      return resource.data;
-    }
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'dejavumallmw@gmail.com' ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-      );
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
     // VALIDATORS
     function isValidTreatment(data) {
       return data.id is number &&
@@ -50,7 +31,8 @@ service cloud.firestore {
       return data.id is number &&
         data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
         data.role is string && data.role.size() <= 100 &&
-        data.bio is string && data.bio.size() <= 1500;
+        data.bio is string && data.bio.size() <= 1500 &&
+        (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 1000000));
     }
 
     function isValidArticle(data) {
@@ -58,7 +40,8 @@ service cloud.firestore {
         data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
         data.category is string && data.category.size() <= 50 &&
         data.content is string && data.content.size() <= 10000 &&
-        data.author is string && data.author.size() <= 100;
+        data.author is string && data.author.size() <= 100 &&
+        (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1000000));
     }
 
     function isValidGalleryItem(data) {
@@ -106,80 +89,78 @@ service cloud.firestore {
       return data.id is number &&
         data.username is string && data.username.size() <= 100 &&
         data.firstName is string && data.firstName.size() <= 100 &&
-        data.role in ['client', 'receptionist', 'admin'];
+        data.role in ['client', 'receptionist', 'admin'] &&
+        (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 1000000)) &&
+        (!('profilePhoto' in data) || (data.profilePhoto is string && data.profilePhoto.size() <= 1000000));
     }
 
-    // ADMIN DIRECTORY
-    match /admins/{adminId} {
-      allow read, write: if isValidId(adminId) && isAdmin();
-    }
-
-    // USERS COLLECTION
+    // USERS COLLECTION (Clients, Receptionists, and Admins)
     match /users/{userId} {
-      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
-      allow list: if isAdmin();
-      allow create: if isValidId(userId) && (
-        isAdmin() ||
-        (isOwner(userId) && isValidUser(incoming()) && incoming().role == 'client')
-      );
-      allow update: if isValidId(userId) && (
-        isAdmin() ||
-        (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role)
-      );
-      allow delete: if isValidId(userId) && isAdmin();
+      allow get: if isValidId(userId);
+      allow list: if true;
+      allow create: if isValidId(userId) && isValidUser(incoming());
+      allow update: if isValidId(userId);
+      allow delete: if isValidId(userId);
     }
 
     // CATEGORIES CATALOG
     match /categories/{categoryId} {
-      allow read: if isValidId(categoryId);
+      allow get: if isValidId(categoryId);
+      allow list: if true;
       allow create: if isValidId(categoryId) && isValidCategory(incoming());
-      allow update: if isValidId(categoryId) && isValidCategory(incoming());
+      allow update: if isValidId(categoryId);
       allow delete: if isValidId(categoryId);
     }
 
     // TREATMENTS CATALOG
     match /treatments/{treatmentId} {
-      allow read: if isValidId(treatmentId);
+      allow get: if isValidId(treatmentId);
+      allow list: if true;
       allow create: if isValidId(treatmentId) && isValidTreatment(incoming());
-      allow update: if isValidId(treatmentId) && isValidTreatment(incoming());
+      allow update: if isValidId(treatmentId);
       allow delete: if isValidId(treatmentId);
     }
 
     // THERAPISTS CATALOG
     match /therapists/{therapistId} {
-      allow read: if isValidId(therapistId);
+      allow get: if isValidId(therapistId);
+      allow list: if true;
       allow create: if isValidId(therapistId) && isValidTherapist(incoming());
-      allow update: if isValidId(therapistId) && isValidTherapist(incoming());
+      allow update: if isValidId(therapistId);
       allow delete: if isValidId(therapistId);
     }
 
     // ARTICLES CATALOG
     match /articles/{articleId} {
-      allow read: if isValidId(articleId);
+      allow get: if isValidId(articleId);
+      allow list: if true;
       allow create: if isValidId(articleId) && isValidArticle(incoming());
-      allow update: if isValidId(articleId) && isValidArticle(incoming());
+      allow update: if isValidId(articleId);
       allow delete: if isValidId(articleId);
     }
 
     // GALLERY ATMOSPHERE
     match /gallery/{galleryId} {
-      allow read: if isValidId(galleryId);
+      allow get: if isValidId(galleryId);
+      allow list: if true;
       allow create: if isValidId(galleryId) && isValidGalleryItem(incoming());
-      allow update: if isValidId(galleryId) && isValidGalleryItem(incoming());
+      allow update: if isValidId(galleryId);
       allow delete: if isValidId(galleryId);
     }
 
     // TESTIMONIALS & REVIEWS
     match /testimonials/{testimonialId} {
-      allow read: if isValidId(testimonialId);
+      allow get: if isValidId(testimonialId);
+      allow list: if true;
       allow create: if isValidId(testimonialId) && isValidTestimonial(incoming());
-      allow update: if isValidId(testimonialId) && isValidTestimonial(incoming());
+      allow update: if isValidId(testimonialId);
       allow delete: if isValidId(testimonialId);
     }
 
     // SITE SETTINGS
     match /settings/{settingsId} {
-      allow read: if isValidId(settingsId);
+      allow get: if isValidId(settingsId);
+      allow list: if true;
       allow create: if isValidId(settingsId) && isValidSiteSettings(incoming());
       allow update: if isValidId(settingsId) && isValidSiteSettings(incoming());
       allow delete: if isValidId(settingsId);
@@ -196,7 +177,7 @@ service cloud.firestore {
 
     // CONNECTION TEST DOCUMENT
     match /test/{docId} {
-      allow read: if true;
+      allow get, list: if true;
     }
   }
 }

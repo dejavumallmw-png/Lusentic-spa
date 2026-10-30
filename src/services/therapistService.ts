@@ -1,30 +1,27 @@
 import { Therapist } from '../types';
 import { INITIAL_THERAPISTS } from '../data/initialData';
 import { db, handleFirestoreError, OperationType } from './firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, onSnapshot, Unsubscribe } from 'firebase/firestore';
 
-const STORAGE_KEY = 'lusentic_spa_therapists';
 const COLLECTION_NAME = 'therapists';
 
-function getStoredTherapists(): Therapist[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_THERAPISTS));
-      return INITIAL_THERAPISTS;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return INITIAL_THERAPISTS;
-  }
-}
+// In-memory runtime state synced directly with Firebase Firestore (zero localStorage)
+let memoryTherapists: Therapist[] = [...INITIAL_THERAPISTS];
+let isSeedingTherapists = false;
 
-function saveTherapists(therapists: Therapist[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(therapists));
-  } catch (e) {
-    console.warn('Failed to save therapists locally:', e);
+function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
+  const result: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+        result[key] = sanitizeForFirestore(val);
+      } else {
+        result[key] = val;
+      }
+    }
   }
+  return result;
 }
 
 export const therapistService = {
@@ -37,24 +34,24 @@ export const therapistService = {
           cloudList.push(d.data() as Therapist);
         });
         cloudList.sort((a, b) => a.id - b.id);
-        saveTherapists(cloudList);
+        memoryTherapists = cloudList;
         return cloudList;
-      } else {
-        // Seed initial therapists to Firestore so cloud database is populated
-        const initial = getStoredTherapists();
-        for (const th of initial) {
+      } else if (!isSeedingTherapists) {
+        isSeedingTherapists = true;
+        for (const th of INITIAL_THERAPISTS) {
           try {
-            await setDoc(doc(db, COLLECTION_NAME, String(th.id)), th);
-          } catch {
-            // ignore non-blocking seed
+            await setDoc(doc(db, COLLECTION_NAME, String(th.id)), sanitizeForFirestore(th));
+          } catch (err) {
+            console.warn('Could not seed therapist to Firestore:', th.name, err);
           }
         }
-        return initial;
+        memoryTherapists = [...INITIAL_THERAPISTS];
+        return memoryTherapists;
       }
     } catch (error) {
-      console.warn('Firestore getAll therapists error, falling back to local cache:', error);
+      console.error('Firestore getAll therapists error:', error);
     }
-    return getStoredTherapists();
+    return memoryTherapists;
   },
 
   async getById(id: number): Promise<Therapist | undefined> {
@@ -65,21 +62,16 @@ export const therapistService = {
   async addTherapist(data: Omit<Therapist, 'id'>): Promise<Therapist> {
     const list = await this.getAll();
     const newId = Math.max(0, ...list.map((t) => t.id)) + 1;
-    const newTherapist: Therapist = {
+    const newTherapist: Therapist = sanitizeForFirestore({
       ...data,
       id: newId,
-    };
-    const updated = [...list, newTherapist];
-    saveTherapists(updated);
+    });
+    memoryTherapists = [...list, newTherapist];
 
     try {
       await setDoc(doc(db, COLLECTION_NAME, String(newId)), newTherapist);
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${newId}`);
-      } catch {
-        console.warn('Saved therapist locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.CREATE, `${COLLECTION_NAME}/${newId}`);
     }
 
     return newTherapist;
@@ -90,18 +82,15 @@ export const therapistService = {
     const index = list.findIndex((t) => t.id === id);
     if (index === -1) return null;
 
-    const merged = { ...list[index], ...updates };
-    list[index] = merged;
-    saveTherapists(list);
+    const merged = sanitizeForFirestore({ ...list[index], ...updates });
+    const nextList = [...list];
+    nextList[index] = merged;
+    memoryTherapists = nextList;
 
     try {
       await setDoc(doc(db, COLLECTION_NAME, String(id)), merged, { merge: true });
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${id}`);
-      } catch {
-        console.warn('Updated therapist locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${id}`);
     }
 
     return merged;
@@ -109,19 +98,46 @@ export const therapistService = {
 
   async deleteTherapist(id: number): Promise<boolean> {
     const list = await this.getAll();
-    const filtered = list.filter((t) => t.id !== id);
-    saveTherapists(filtered);
+    memoryTherapists = list.filter((t) => t.id !== id);
 
     try {
       await deleteDoc(doc(db, COLLECTION_NAME, String(id)));
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${id}`);
-      } catch {
-        console.warn('Deleted therapist locally, cloud sync pending.');
-      }
+      handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${id}`);
     }
 
     return true;
+  },
+
+  subscribe(callback: (therapists: Therapist[]) => void): () => void {
+    callback(memoryTherapists);
+    let unsub: Unsubscribe | null = null;
+    try {
+      unsub = onSnapshot(
+        collection(db, COLLECTION_NAME),
+        (snap) => {
+          if (!snap.empty) {
+            const list: Therapist[] = [];
+            snap.forEach((d) => {
+              list.push(d.data() as Therapist);
+            });
+            list.sort((a, b) => a.id - b.id);
+            memoryTherapists = list;
+            callback(list);
+          } else {
+            this.getAll().then((seeded) => callback(seeded));
+          }
+        },
+        (err) => {
+          console.warn('Therapists onSnapshot warning:', err);
+        }
+      );
+    } catch (e) {
+      console.warn('Unable to attach Firestore therapists listener:', e);
+    }
+
+    return () => {
+      if (unsub) unsub();
+    };
   },
 };
